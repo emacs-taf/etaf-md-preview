@@ -113,7 +113,7 @@ missing heading outline, and links that lost their activation keymap."
           (while (< position (point-max))
             (when (get-text-property position 'keymap)
               (cl-incf links))
-            (setq position (next-single-property-change position nil nil (point-max))))
+            (setq position (next-property-change position nil (point-max))))
           (unless (> links 0)
             (push "the document rendered without any interactive link" problems))))
       (unless (plist-get (etaf-md-preview-state session) :outline)
