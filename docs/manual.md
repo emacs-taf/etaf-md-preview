@@ -1,0 +1,117 @@
+# ETAF Markdown Preview manual
+
+This manual covers the workflows a reader performs. The root entry's
+Commentary owns the supported API inventory; this document links to it instead
+of repeating signatures.
+
+## Keys
+
+| Key | Action |
+| --- | --- |
+| `n` / `p` | Move to the next / previous heading of the document |
+| `TAB` | Choose a heading from a completion list |
+| `RET`, mouse-1 | Activate the link, image or video under point |
+| `r` | Re-read the file and repaint |
+| `t` | Cycle the palette (dark, light, sepia) |
+| `[` / `]` | Narrow / widen the maximum reading measure by four columns |
+| `?` | Show a one-line key summary |
+| `q` | Unmount the preview and kill its buffer |
+| `C-s`, `C-v`, `M-v`, wheel | Native isearch and scrolling |
+
+The buffer is an ordinary Emacs buffer, so isearch, `occur`, window splitting,
+`C-x C-s`-style buffer handling and `imenu` all keep working. `M-x imenu`
+lists the document outline.
+
+## Supported Markdown
+
+The parser covers CommonMark blocks and inlines plus the GitHub extensions a
+preview needs:
+
+- Headings: ATX (`#` … `######`) and Setext (`===`, `---`), with stable
+  anchors used by tables of contents and `#fragment` links.
+- Paragraphs with emphasis, strong emphasis, strikethrough, inline code,
+  links (inline, reference and shortcut), autolinks and raw inline HTML
+  (rendered literally).
+- Fenced code blocks with an info string (shown as a language tag) and
+  indented code blocks; long lines wrap so no code is hidden.
+- Blockquotes, nested ordered and unordered lists, and task list items
+  (`- [x]`, `- [ ]`).
+- Pipe tables with left, center and right alignment, drawn as a full grid
+  with an outer frame, row and column separators and a header rule.
+- GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`,
+  `[!CAUTION]`) rendered as titled callout blocks.
+- Thematic breaks, character references, backslash escapes and hard line
+  breaks.
+- Footnotes: `[^label]` references render numbered and definitions collect at
+  the end of the document; activating a reference jumps to its definition.
+- YAML front matter is removed from the body; its `title` becomes the document
+  title and its author, date, version, license and status keys render in a
+  title area at the top of the document.
+
+`etaf-md-preview-create` selects the dialect with its `:flavor` argument:
+`gfm` (the default) enables the GitHub extensions and front matter,
+`commonmark` parses the core specification only, and a feature plist such as
+`(:tables t :task-lists nil)` toggles individual extensions.
+
+Image syntax and HTML `<img>` / `<video>` tags render as media cards. Relative paths resolve against the document's directory. A local image
+renders through ETAF's image Host; a local video renders a poster frame and a
+play caption. Remote images render a labeled placeholder whose activation
+opens the URL. A missing or unreadable file renders a placeholder card, never
+an error.
+
+## Theming and layout
+
+Three palettes ship with the previewer: `dark`, `light` and `sepia`. The
+initial palette follows the frame's `background-mode`; `t` cycles and
+`etaf-md-preview-set-theme` pins one. The palette is published as `:ui-*`
+theme tokens, so shared ETAF UI components used inside the preview follow it.
+
+The reading measure is capped and centered in the window. The session stores a
+maximum; the column stretches to the window and never exceeds it, so a narrow
+window fills the available columns. `[` and `]` adjust the maximum manually in
+both directions, and the result is clamped to a readable range. A window
+resize reflows through the renderer's viewport update rather than rebuilding
+the document, and because the preview publishes into one buffer, resizing
+never restarts the session.
+
+## Scripting and headless use
+
+`etaf-md-preview-create` builds a session from a file or from text without any
+buffer; `etaf-md-preview-view` returns the mountable view; `etaf-md-preview-state`
+reports a detached snapshot. A session created from text is a complete
+headless preview, which is what the acceptance tests use:
+
+```elisp
+(let* ((session (etaf-md-preview-create :text "# Notes\n\n**bold** body.\n"))
+       (buffer (etaf-md-preview-open session)))
+  (etaf-md-preview-locate session 0)
+  (etaf-md-preview-set-theme session 'sepia)
+  (etaf-md-preview-refresh session)
+  (with-current-buffer buffer (etaf-md-preview-close)))
+```
+
+`etaf-md-preview-open` accepts a file path or a session, so callers can render
+a document they built themselves. `etaf-md-preview-locate` moves point to an
+outline index; `etaf-md-preview-outline` returns the outline itself.
+
+`scripts/md-preview-gui-probe.el` drives a live frame for GUI verification: it
+opens a document at a given frame size, reports one-line state, sends real
+keys and checks layout invariants (no over-wide line, an interactive link, an
+outline).
+
+## Troubleshooting
+
+- **A heading jump lands on the wrong occurrence.** Heading navigation finds
+  the rendered heading text at the start of a buffer line, in outline order.
+  Two headings with identical text are matched in order; an unusual document
+  whose paragraph starts with the same text at line start may be matched
+  first.
+- **An image shows dots or a colored block grid.** The frame has no usable
+  graphics support for that file, so Ebox fell back to its terminal
+  converters; install ffmpeg for better terminal rendering, or view the file
+  in a graphical frame.
+- **A video shows a placeholder instead of a poster.** ffmpeg is not
+  available on `exec-path`; the video still opens on activation.
+- **Theme changes do not repaint shared components.** The preview publishes
+  its palette for its own subtree only; a surrounding application keeps its
+  own theme context.

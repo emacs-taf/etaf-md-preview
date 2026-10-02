@@ -1,0 +1,89 @@
+{
+  "schema": 1,
+  "load_path": [
+    ".",
+    "tests",
+    "../../etaf",
+    "../../etaf-ui",
+    "../../ebox",
+    "../../ecss"
+  ],
+  "support": [],
+  "cases": [
+    {
+      "name": "etaf-md-preview-tests-create-reports-document-state",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Creating a session from text exposes title, outline and footnotes."
+    },
+    {
+      "name": "etaf-md-preview-tests-render-inline-styles-and-links",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A paragraph renders every run with its style and keeps links clickable."
+    },
+    {
+      "name": "etaf-md-preview-tests-render-block-structure",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Headings, lists, tasks, quotes, code and tables all reach the buffer."
+    },
+    {
+      "name": "etaf-md-preview-tests-footnotes-numbered-and-defined",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Footnote references render numbered and definitions appear at the end."
+    },
+    {
+      "name": "etaf-md-preview-tests-media-cards-show-placeholders",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Missing local media renders a labeled card instead of failing."
+    },
+    {
+      "name": "etaf-md-preview-tests-media-keeps-source-aspect-under-height-cap",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A media card capped by height narrows its grid instead of squashing the source."
+    },
+    {
+      "name": "etaf-md-preview-tests-local-media-opens-with-the-desktop",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "RET on a local media card asks the desktop to open the file instead of loading it into Emacs."
+    },
+    {
+      "name": "etaf-md-preview-tests-refresh-re-reads-a-file",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Refresh re-reads the file and publishes the new outline."
+    },
+    {
+      "name": "etaf-md-preview-tests-theme-changes-and-rejects-unknown",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Themes cycle in order and unknown palettes are rejected."
+    },
+    {
+      "name": "etaf-md-preview-tests-locate-follows-the-outline",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Locate moves point to the heading band and next/previous walk the outline."
+    },
+    {
+      "name": "etaf-md-preview-tests-close-releases-and-reopens",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Closing kills the buffer and the same session mounts again."
+    },
+    {
+      "name": "etaf-md-preview-tests-front-matter-is-metadata",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Front matter is stripped from the body and feeds the title."
+    },
+    {
+      "name": "etaf-md-preview-tests-flavor-commonmark-keeps-extensions-literal",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The CommonMark flavor leaves GFM-only syntax as literal text."
+    },
+    {
+      "name": "etaf-md-preview-tests-flavor-gfm-converts-extensions",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The GFM flavor converts the extensions the previewer defaults to."
+    },
+    {
+      "name": "etaf-md-preview-tests-flavor-rejects-unknown-name",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "An unknown dialect name is reported instead of guessed."
+    }
+  ]
+}
