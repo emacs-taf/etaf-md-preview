@@ -61,18 +61,38 @@ an error.
 
 ## Theming and layout
 
-Three palettes ship with the previewer: `dark`, `light` and `sepia`. The
-initial palette follows the frame's `background-mode`; `t` cycles and
-`etaf-md-preview-set-theme` pins one. The palette is published as `:ui-*`
-theme tokens, so shared ETAF UI components used inside the preview follow it.
+`etaf-md-preview-theme` chooses the document's colors. The default `auto`
+derives them from the active frame's own faces: the page keeps the Emacs
+theme's background, muted text follows `shadow`, headings `outline-1`, links
+`link`, callouts `success`/`warning`/`error`, and panel surfaces (code blocks,
+table headers and stripes, rules) are small blends of the frame's background
+toward its foreground. The preview therefore matches whatever Emacs theme is
+active without painting a page background of its own. The fixed `dark`,
+`light` and `sepia` palettes remain available when a self-contained page is
+wanted: selecting one paints its page background. `t` cycles the fixed
+palettes, `etaf-md-preview-set-theme` pins one, and the resulting colors are
+published as `:ui-*` theme tokens, so shared ETAF UI components used inside
+the preview follow them.
 
 The reading measure is capped and centered in the window. The session stores a
 maximum; the column stretches to the window and never exceeds it, so a narrow
 window fills the available columns. `[` and `]` adjust the maximum manually in
-both directions, and the result is clamped to a readable range. A window
-resize reflows through the renderer's viewport update rather than rebuilding
-the document, and because the preview publishes into one buffer, resizing
-never restarts the session.
+both directions, and the result is clamped between `etaf-md-preview-width-min`
+and `etaf-md-preview-width-max`. A window resize reflows through the renderer's
+viewport update rather than rebuilding the document, and because the preview
+publishes into one buffer, resizing never restarts the session.
+
+## Customization
+
+Four options cover the supported personalization; every other appearance
+decision follows the document and the frame.
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `etaf-md-preview-theme` | `auto` | Initial palette; `auto` derives the colors from the Emacs theme's faces and paints no page background. |
+| `etaf-md-preview-flavor` | `gfm` | Default Markdown dialect when `etaf-md-preview-create` gets no `:flavor`. |
+| `etaf-md-preview-width-min` | `40` | Narrowest reading measure, in character cells. |
+| `etaf-md-preview-width-max` | `110` | Widest reading measure; a wider window keeps it and centers the column. |
 
 ## Scripting and headless use
 

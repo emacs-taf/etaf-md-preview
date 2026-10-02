@@ -22,11 +22,17 @@
 
 (define-error 'etaf-md-preview-error "Markdown preview error")
 
-(defconst etaf-md-preview--width-min 40
-  "Narrowest reading column, in character cells.")
+(defcustom etaf-md-preview-width-min 40
+  "Narrowest reading measure, in character cells.
+`etaf-md-preview-adjust-width' clamps its result to this value."
+  :type 'integer
+  :group 'etaf-md-preview)
 
-(defconst etaf-md-preview--width-max 110
-  "Widest reading column, in character cells.")
+(defcustom etaf-md-preview-width-max 110
+  "Widest reading measure, in character cells.
+A window wider than this measure keeps the measure and centers the column."
+  :type 'integer
+  :group 'etaf-md-preview)
 
 ;;; ---------------------------------------------------------------------------
 ;;; Refs
@@ -73,8 +79,10 @@ re-renders on every write."
   "Create a headless preview session and return it.
 FILE names a markdown document to read; TEXT supplies the document directly
 for buffers and tests.  Exactly one source is required.  TITLE overrides the
-document title; THEME selects a palette and defaults to the frame's.  FLAVOR
-selects the markdown dialect: `gfm' (the default) enables the GitHub
+document title; THEME selects a palette and defaults to the value of
+`etaf-md-preview-theme' (`auto' derives the document colors from the active
+frame's faces and paints no page background).  FLAVOR selects the markdown
+dialect and defaults to `etaf-md-preview-flavor': `gfm' enables the GitHub
 extensions and front matter, `commonmark' parses the core only, and a feature
 plist may toggle individual extensions."
   (let* ((file (and file (expand-file-name file)))
@@ -82,7 +90,11 @@ plist may toggle individual extensions."
                          (file (etaf-md-preview--read-source file))
                          (t (signal 'etaf-md-preview-error
                                     '("etaf-md-preview-create needs :file or :text")))))
-         (document (etaf-md-preview--parse contents flavor)))
+         (flavor (or flavor etaf-md-preview-flavor))
+         (document (etaf-md-preview--parse contents flavor))
+         (requested (or theme etaf-md-preview-theme))
+         (auto (eq requested 'auto))
+         (palette (if auto (etaf-md-preview-auto-theme) requested)))
     (list :file file
           :text (unless file contents)
           :flavor flavor
@@ -94,22 +106,28 @@ plist may toggle individual extensions."
                                (and file (file-name-nondirectory file))
                                "Markdown")
                           :name 'etaf-md-preview-title)
-          :theme (etaf-ref (or theme (etaf-md-preview-auto-theme))
-                           :name 'etaf-md-preview-theme)
+          :theme (etaf-ref palette :name 'etaf-md-preview-theme)
+          ;; `auto' derives its surface palette from the active frame's faces
+          ;; and paints no page background; a named palette paints its page.
+          :theme-source (if auto 'frame 'palette)
           :width (etaf-ref 92 :name 'etaf-md-preview-width)
           :error (etaf-ref nil :name 'etaf-md-preview-error-text)
           :buffer nil)))
 
 (defun etaf-md-preview-state (session)
   "Return SESSION's state as a detached plist snapshot.
-Keys are `:file', `:title', `:dir', `:theme', `:width', `:outline',
-`:error', `:blocks' (top-level block count) and `:footnotes' (labels)."
+Keys are `:file', `:title', `:dir', `:theme', `:background', `:width',
+`:outline', `:error', `:blocks' (top-level block count) and `:footnotes'
+\(labels).  `:background' is `palette' when the preview paints its palette's
+page background, and nil when it leaves the Emacs theme's background."
   (let ((document (etaf-md-preview--read session :document)))
     (list :file (plist-get session :file)
           :title (etaf-md-preview--read session :title)
           :dir (plist-get session :dir)
           :flavor (plist-get session :flavor)
           :theme (etaf-md-preview--read session :theme)
+          :background (when (eq (plist-get session :theme-source) 'palette)
+                        'palette)
           :width (etaf-md-preview--read session :width)
           :outline (copy-tree (plist-get document :outline))
           :error (etaf-md-preview--read session :error)
@@ -136,11 +154,13 @@ published document untouched."
 
 (defun etaf-md-preview-set-theme (session theme)
   "Show SESSION with palette THEME; return SESSION.
-Unknown palettes signal `etaf-md-preview-error'."
+Unknown palettes signal `etaf-md-preview-error'.  Selecting a palette also
+paints its page background."
   (unless (assq theme etaf-md-preview-themes)
     (signal 'etaf-md-preview-error
             (list (format "Unknown markdown preview theme: %S" theme))))
   (etaf-md-preview--write session :theme theme)
+  (plist-put session :theme-source 'palette)
   session)
 
 (defun etaf-md-preview-cycle-theme (session)
@@ -157,8 +177,8 @@ Unknown palettes signal `etaf-md-preview-error'."
 
 (defun etaf-md-preview--clamp-width (width)
   "Return WIDTH clamped to the supported reading measure."
-  (max etaf-md-preview--width-min
-       (min etaf-md-preview--width-max (round width))))
+  (max etaf-md-preview-width-min
+       (min etaf-md-preview-width-max (round width))))
 
 (defun etaf-md-preview-adjust-width (session delta)
   "Widen SESSION's maximum reading measure by DELTA cells and return it.
@@ -311,10 +331,27 @@ the file directly."
 ;;; Rendering environment
 ;;; ---------------------------------------------------------------------------
 
+(defun etaf-md-preview--page-background (session)
+  "Return the page background SESSION paints, or nil for none.
+The session paints its palette's background only after an explicit palette
+selection; the face-derived `auto' appearance leaves the active Emacs theme's
+background visible instead."
+  (when (eq (plist-get session :theme-source) 'palette)
+    (etaf-md-preview-color :bg (etaf-md-preview--read session :theme))))
+
+(defun etaf-md-preview--session-palette (session)
+  "Return SESSION's surface palette, or nil for the named palette colors.
+Sessions created with the `auto' theme derive their surfaces from the active
+frame's faces, so panels, tables and code blocks match the user's own theme."
+  (when (eq (plist-get session :theme-source) 'frame)
+    (etaf-md-preview--palette-from-faces)))
+
 (defun etaf-md-preview--env (session)
   "Return the rendering environment plist for SESSION."
   (list :theme (etaf-md-preview--read session :theme)
+        :palette (etaf-md-preview--session-palette session)
         :width (etaf-md-preview--read session :width)
+        :background (etaf-md-preview--page-background session)
         :dir (plist-get session :dir)
         :features (plist-get session :features)
         :open-url (lambda (url) (etaf-md-preview--open-url session url))

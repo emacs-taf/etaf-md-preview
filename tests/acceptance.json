@@ -56,6 +56,21 @@
       "purpose": "Themes cycle in order and unknown palettes are rejected."
     },
     {
+      "name": "etaf-md-preview-tests-auto-theme-keeps-the-emacs-background",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The auto theme paints no page background; an explicit palette paints its own."
+    },
+    {
+      "name": "etaf-md-preview-tests-auto-theme-derives-surfaces-from-faces",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The auto theme blends panel surfaces from the frame's own faces."
+    },
+    {
+      "name": "etaf-md-preview-tests-custom-defaults-select-theme-flavor-and-bounds",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The theme, flavor and reading-measure defcustoms drive new sessions."
+    },
+    {
       "name": "etaf-md-preview-tests-locate-follows-the-outline",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Locate moves point to the heading band and next/previous walk the outline."

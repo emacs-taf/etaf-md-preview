@@ -57,11 +57,11 @@ adds outline navigation, reloading, theming and closing.")
 (defun etaf-md-preview--remap-canvas-face (session)
   "Paint the current buffer's unpainted cells with SESSION's background.
 Ebox paints whole character cells; remapping the default face keeps the
-sub-cell remainder at the window edge in the palette's background."
-  (face-remap-set-base 'default
-                       (list :background
-                             (etaf-md-preview-color
-                              :bg (etaf-md-preview--read session :theme)))))
+sub-cell remainder at the window edge in the page's background.  A session
+without a page background resets the remap so the Emacs theme shows through."
+  (if-let* ((background (etaf-md-preview--page-background session)))
+      (face-remap-set-base 'default (list :background background))
+    (face-remap-reset-base 'default)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Navigation and display commands
@@ -178,7 +178,10 @@ whole preview without a remount."
              (document (etaf-md-preview--ref preview :document))
              (theme (etaf-md-preview--ref preview :theme))
              (tokens (etaf-computed
-                      (lambda () (etaf-md-preview-theme-tokens (etaf-value theme)))
+                      (lambda ()
+                        (etaf-md-preview-theme-tokens
+                         (etaf-value theme)
+                         (etaf-md-preview--session-palette preview)))
                       :name 'etaf-md-preview-theme-tokens)))
   :setup
   (etaf-theme-provide tokens)

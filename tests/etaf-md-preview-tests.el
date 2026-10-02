@@ -219,9 +219,85 @@ the system opener instead."
   (let ((session (etaf-md-preview-create :text "# x\n" :theme 'dark)))
     (should (equal (etaf-md-preview-set-theme session 'light) session))
     (should (eq (plist-get (etaf-md-preview-state session) :theme) 'light))
+    (should (eq (plist-get (etaf-md-preview-state session) :background) 'palette))
     (should (eq (etaf-md-preview-cycle-theme session) 'sepia))
     (should-error (etaf-md-preview-set-theme session 'neon)
                   :type 'etaf-md-preview-error)))
+
+(ert-deftest etaf-md-preview-tests-auto-theme-keeps-the-emacs-background ()
+  "The default theme paints no page background; an explicit one does."
+  (let* ((auto (etaf-md-preview-create
+                :text "plain text here\n" :theme 'auto))
+         (explicit (etaf-md-preview-create
+                    :text "plain text here\n" :theme 'dark))
+         (auto-buffer (etaf-md-preview-tests--mount auto))
+         (dark-buffer (etaf-md-preview-tests--mount explicit)))
+    (unwind-protect
+        (progn
+          (should-not (plist-get (etaf-md-preview-state auto) :background))
+          (should (eq (plist-get (etaf-md-preview-state explicit) :background)
+                      'palette))
+          (with-current-buffer auto-buffer
+            (should-not (etaf-md-preview-tests--face-attribute
+                         "plain" :background)))
+          (with-current-buffer dark-buffer
+            ;; The dark palette's page background, as shipped.
+            (should (equal (etaf-md-preview-tests--face-attribute
+                            "plain" :background)
+                           "#0d1117"))))
+      (kill-buffer auto-buffer)
+      (kill-buffer dark-buffer))))
+
+(ert-deftest etaf-md-preview-tests-auto-theme-derives-surfaces-from-faces ()
+  "The auto theme blends panels from the active frame's own faces."
+  (let* ((background (face-attribute 'default :background nil t))
+         (foreground (face-attribute 'default :foreground nil t))
+         (session (etaf-md-preview-create :text "plain `code` here\n"))
+         buffer
+         dark-surface
+         light-surface)
+    (unwind-protect
+        (progn
+          (set-face-attribute 'default nil
+                              :background "#101820" :foreground "#e0e0e0")
+          (setq buffer (etaf-md-preview-tests--mount session))
+          (setq dark-surface
+                (with-current-buffer buffer
+                  (etaf-md-preview-tests--face-attribute "code" :background)))
+          (kill-buffer buffer)
+          (setq buffer nil)
+          (set-face-attribute 'default nil
+                              :background "#fdf6e3" :foreground "#2b2b2b")
+          (setq buffer (etaf-md-preview-tests--mount session))
+          (setq light-surface
+                (with-current-buffer buffer
+                  (etaf-md-preview-tests--face-attribute "code" :background))))
+      (when (buffer-live-p buffer) (kill-buffer buffer))
+      (set-face-attribute 'default nil
+                          :background background :foreground foreground))
+    (should (stringp dark-surface))
+    (should (stringp light-surface))
+    ;; The surface follows the frame, not a fixed palette.
+    (should-not (equal dark-surface light-surface))
+    (should-not (equal dark-surface "#161b22"))
+    (should-not (equal light-surface "#161b22"))))
+
+(ert-deftest etaf-md-preview-tests-custom-defaults-select-theme-flavor-and-bounds ()
+  "The defcustoms choose the initial palette, dialect and measure bounds."
+  (let ((etaf-md-preview-theme 'sepia)
+        (etaf-md-preview-flavor 'commonmark)
+        (etaf-md-preview-width-min 30)
+        (etaf-md-preview-width-max 50))
+    (let* ((session (etaf-md-preview-create :text "~~strike~~\n"))
+           (state (etaf-md-preview-state session)))
+      (should (eq (plist-get state :theme) 'sepia))
+      (should (eq (plist-get state :background) 'palette))
+      (should (eq (plist-get state :flavor) 'commonmark))
+      (etaf-md-preview-tests--with-mount session
+        (should (string-match-p "~~strike~~"
+                                (substring-no-properties (buffer-string)))))
+      (should (= (etaf-md-preview-adjust-width session -100) 30))
+      (should (= (etaf-md-preview-adjust-width session 100) 50)))))
 
 (ert-deftest etaf-md-preview-tests-locate-follows-the-outline ()
   "Locate moves point to the heading band and next/previous walk the outline."

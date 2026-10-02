@@ -28,12 +28,16 @@ scrolling, isearch and window splitting keep working.
   through the same pipeline, with a play caption that opens the video.
 - Links open in the browser, jump to in-document headings, or open local files;
   a missing media file becomes a labeled card instead of an error.
-- Three palettes (dark, light and sepia) share one layout and are published as
-  `:ui-*` theme tokens so shared ETAF UI components follow the preview.
+- Three fixed palettes (dark, light and sepia) plus a face-derived default
+  (`etaf-md-preview-theme' = `auto') that follows the active Emacs theme and
+  paints no page background; all colors are published as `:ui-*` theme tokens
+  so shared ETAF UI components follow the preview.
 - Outline navigation (`n`/`p`, `TAB`), imenu integration, reloading (`r`), an
   adjustable maximum reading measure (`[`/`]`) and native scrolling. A window
   resize reflows through the framework's viewport update without rebuilding
   the view.
+- Four user options: `etaf-md-preview-theme`, `etaf-md-preview-flavor`,
+  `etaf-md-preview-width-min` and `etaf-md-preview-width-max`.
 
 ## Prerequisites
 

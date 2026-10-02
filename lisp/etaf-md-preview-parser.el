@@ -45,6 +45,16 @@ previewer also treats as its default: tables, task lists, strikethrough, bare
 autolinks, footnotes and alert blocks, plus front matter, which is a document
 convention rather than a markdown extension.")
 
+(defcustom etaf-md-preview-flavor 'gfm
+  "Default Markdown dialect of `etaf-md-preview-create'.
+The session's `:flavor' argument overrides it.  `gfm' enables the GitHub
+extensions and front matter, `commonmark' parses the core specification only,
+and a feature plist toggles individual extensions."
+  :type '(choice (const :tag "GitHub Flavored Markdown" gfm)
+                 (const :tag "CommonMark only" commonmark)
+                 (sexp :tag "Feature plist"))
+  :group 'etaf-md-preview)
+
 (defun etaf-md-preview--features-for (flavor)
   "Return the feature plist for FLAVOR.
 FLAVOR is a named dialect, nil for the default `gfm', or a plist overriding

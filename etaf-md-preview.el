@@ -76,9 +76,11 @@
 ;;
 ;; Function: etaf-md-preview-state (session)
 ;; Return SESSION's state as a detached plist snapshot.
-;; Keys are `:file', `:title', `:dir', `:theme', `:flavor', `:width',
-;; `:outline' (a list of (LEVEL TEXT ID)), `:error', `:blocks' (top-level
-;; block count) and `:footnotes' (definition labels in reference order).  The
+;; Keys are `:file', `:title', `:dir', `:theme', `:flavor', `:background',
+;; `:width', `:outline' (a list of (LEVEL TEXT ID)), `:error', `:blocks'
+;; \(top-level block count) and `:footnotes' (definition labels in reference
+;; order).  `:background' is `palette' when the preview paints its palette's
+;; page background and nil when it keeps the Emacs theme's background.  The
 ;; snapshot copies every value, so mutating it never changes the session; use
 ;; it to render outside ETAF or to assert behavior in tests.
 ;;
@@ -119,14 +121,39 @@
 ;;
 ;; Function: etaf-md-preview-adjust-width (session delta)
 ;; Widen SESSION's maximum reading measure by DELTA character cells and return
-;; the new maximum.  The result is clamped to the supported measure; a window
-;; narrower than the maximum fills the available columns instead.
+;; the new maximum.  The result is clamped to `etaf-md-preview-width-min' and
+;; `etaf-md-preview-width-max'; a window narrower than the maximum fills the
+;; available columns instead.
+;;
+;; Variable: etaf-md-preview-theme (default `auto')
+;; Initial palette of `etaf-md-preview-create'.  `auto' derives the document
+;; colors from the active frame's own faces (default, shadow, outline-1 and the
+;; semantic faces) and paints no page background, so panels, tables, code
+;; blocks and rules match whatever Emacs theme is active; `dark', `light' and
+;; `sepia' select that fixed palette explicitly, including its page background.
+;; `etaf-md-preview-set-theme' and `etaf-md-preview-cycle-theme' always select
+;; an explicit palette, so the page background follows the chosen theme.
+;;
+;; Variable: etaf-md-preview-flavor (default `gfm')
+;; Default Markdown dialect of `etaf-md-preview-create' when it is not given a
+;; `:flavor': `gfm', `commonmark', or a feature plist.
+;;
+;; Variable: etaf-md-preview-width-min (default 40)
+;; Narrowest reading measure in character cells.
+;;
+;; Variable: etaf-md-preview-width-max (default 110)
+;; Widest reading measure in character cells; a wider window keeps this measure
+;; and centers it.
 ;;
 ;; Error: etaf-md-preview-error
 ;; Invalid markdown preview session or document input
 ;; Catch this condition with condition-case; failed calls do not return a value.
 
 ;;; Code:
+
+(defgroup etaf-md-preview nil
+  "Markdown preview appearance and reading behavior."
+  :group 'text)
 
 (when-let* ((directory (and load-file-name
                            (file-name-directory load-file-name)))

@@ -85,9 +85,90 @@
               (:important-soft . "#e9dcf5"))))
   "Color palettes of the markdown previewer.")
 
+(defcustom etaf-md-preview-theme 'auto
+  "Initial palette of `etaf-md-preview-create' and the page it paints.
+`auto' derives the document colors from the active frame's own faces
+(`default', `shadow', `outline-1' and the semantic faces) and paints no page
+background, so the preview matches whatever Emacs theme is active.  `dark',
+`light' and `sepia' select a fixed palette explicitly, including its page
+background; `etaf-md-preview-set-theme' and `etaf-md-preview-cycle-theme'
+always select one of those fixed palettes."
+  :type '(choice (const :tag "Follow the Emacs theme" auto)
+                 (const :tag "Dark page" dark)
+                 (const :tag "Light page" light)
+                 (const :tag "Sepia page" sepia))
+  :group 'etaf-md-preview)
+
 (defun etaf-md-preview-auto-theme ()
   "Return the palette matching the current frame's background mode."
   (if (eq (frame-parameter nil 'background-mode) 'dark) 'dark 'light))
+
+(defun etaf-md-preview--face-color (face attribute fallback)
+  "Return FACE's ATTRIBUTE color, or FALLBACK when it is unspecified."
+  (let ((value (ignore-errors (face-attribute face attribute nil t))))
+    (if (and (stringp value) (not (equal value "unspecified")))
+        value
+      fallback)))
+
+(defun etaf-md-preview--mix-color (base overlay weight)
+  "Return BASE mixed toward OVERLAY by WEIGHT (0 to 1) as #rrggbb.
+Unknown color names fall back to BASE so a theme with named colors still
+resolves a usable surface."
+  (let ((base-rgb (ignore-errors (color-values base)))
+        (overlay-rgb (ignore-errors (color-values overlay))))
+    (if (and base-rgb overlay-rgb)
+        (let ((mixed (cl-loop for base-value in (cl-subseq base-rgb 0 3)
+                              for overlay-value in (cl-subseq overlay-rgb 0 3)
+                              collect (ash (round (+ (* base-value (- 1 weight))
+                                                     (* overlay-value weight)))
+                                           -8))))
+          (apply #'format "#%02x%02x%02x" mixed))
+      base)))
+
+(defun etaf-md-preview--palette-from-faces ()
+  "Return a palette derived from the active frame's own faces.
+Every surface is a blend of the frame's background toward its foreground or
+a semantic accent, so `auto' matches whatever Emacs theme is active instead
+of a fixed page palette."
+  (let* ((background (etaf-md-preview--face-color 'default :background "#ffffff"))
+         (foreground (etaf-md-preview--face-color 'default :foreground "#1f2328"))
+         (shadow (etaf-md-preview--face-color
+                  'shadow :foreground
+                  (etaf-md-preview--mix-color background foreground 0.55)))
+         (link (or (etaf-md-preview--face-color 'link :foreground nil)
+                   (etaf-md-preview--face-color 'button :foreground nil)
+                   (etaf-md-preview--face-color
+                    'font-lock-function-name-face :foreground nil)
+                   foreground))
+         (heading (etaf-md-preview--face-color 'outline-1 :foreground foreground))
+         (ok (etaf-md-preview--face-color 'success :foreground "#1a7f37"))
+         (warn (etaf-md-preview--face-color 'warning :foreground "#9a6700"))
+         (danger (etaf-md-preview--face-color 'error :foreground "#d1242f"))
+         (important (etaf-md-preview--face-color
+                     'font-lock-keyword-face :foreground link)))
+    (list (cons :bg background)
+          (cons :ink foreground)
+          (cons :muted shadow)
+          (cons :faint (etaf-md-preview--mix-color shadow background 0.4))
+          (cons :accent link)
+          (cons :accent-soft (etaf-md-preview--mix-color background link 0.18))
+          (cons :border (etaf-md-preview--mix-color background foreground 0.18))
+          (cons :panel (etaf-md-preview--mix-color background foreground 0.06))
+          (cons :panel2 (etaf-md-preview--mix-color background foreground 0.10))
+          (cons :quote-bar (etaf-md-preview--mix-color background foreground 0.25))
+          (cons :quote-bg (etaf-md-preview--mix-color background foreground 0.04))
+          (cons :table-header (etaf-md-preview--mix-color background foreground 0.07))
+          (cons :table-stripe (etaf-md-preview--mix-color background foreground 0.03))
+          (cons :heading heading)
+          (cons :heading-rule (etaf-md-preview--mix-color background foreground 0.18))
+          (cons :ok ok)
+          (cons :ok-soft (etaf-md-preview--mix-color background ok 0.14))
+          (cons :warn warn)
+          (cons :warn-soft (etaf-md-preview--mix-color background warn 0.14))
+          (cons :danger danger)
+          (cons :danger-soft (etaf-md-preview--mix-color background danger 0.14))
+          (cons :important important)
+          (cons :important-soft (etaf-md-preview--mix-color background important 0.14)))))
 
 (defun etaf-md-preview-color (key theme)
   "Return THEME's color for semantic KEY.
@@ -116,19 +197,24 @@ code spans then use the frame's own font instead of guessing a family."
         (max 8 (round (/ (* height 4.0) 30.0)))
       16.0)))
 
-(defun etaf-md-preview-theme-tokens (theme)
+(defun etaf-md-preview-theme-tokens (theme &optional palette)
   "Return the ETAF UI token plist for palette THEME.
-The application provides this plist through `etaf-theme-provide', so shared
-ETAF UI Components follow the previewer's palette."
+PALETTE, when given, supplies the colors instead of THEME's named palette
+\(used by the face-derived `auto' appearance).  The application provides this
+plist through `etaf-theme-provide', so shared ETAF UI Components follow the
+previewer's colors."
   (let* ((dark (eq theme 'dark))
-         (bg (etaf-md-preview-color :bg theme))
-         (panel (etaf-md-preview-color :panel theme))
-         (panel2 (etaf-md-preview-color :panel2 theme))
-         (ink (etaf-md-preview-color :ink theme))
-         (line (etaf-md-preview-color :border theme))
-         (muted (etaf-md-preview-color :muted theme))
-         (accent (etaf-md-preview-color :accent theme))
-         (accent-soft (etaf-md-preview-color :accent-soft theme)))
+         (lookup (lambda (key)
+                   (or (cdr (assq key palette))
+                       (etaf-md-preview-color key theme))))
+         (bg (funcall lookup :bg))
+         (panel (funcall lookup :panel))
+         (panel2 (funcall lookup :panel2))
+         (ink (funcall lookup :ink))
+         (line (funcall lookup :border))
+         (muted (funcall lookup :muted))
+         (accent (funcall lookup :accent))
+         (accent-soft (funcall lookup :accent-soft)))
     (list :ink ink :paper bg :panel panel :line line :muted muted
           :accent accent :accent-soft accent-soft
           :ui-fg ink :ui-bg bg :ui-border line :ui-muted-fg muted

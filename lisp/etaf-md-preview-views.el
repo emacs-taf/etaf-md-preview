@@ -35,8 +35,14 @@
 ;;; ---------------------------------------------------------------------------
 
 (defun etaf-md-preview--env-color (env key)
-  "Return ENV's color for semantic KEY."
-  (etaf-md-preview-color key (plist-get env :theme)))
+  "Return ENV's color for semantic KEY.
+ENV's face-derived `:palette', when present, wins over the named theme; an
+unknown key in either source signals `etaf-md-preview-error'."
+  (if-let* ((palette (plist-get env :palette)))
+      (or (cdr (assq key palette))
+          (signal 'etaf-md-preview-error
+                  (list (format "Unknown markdown preview color: %S" key))))
+    (etaf-md-preview-color key (plist-get env :theme))))
 
 (defun etaf-md-preview--heading-pixels (level)
   "Return the heading font size for LEVEL."
@@ -109,8 +115,7 @@ document with front matter opens on a page-like header instead of raw text."
                   (when (and labels (not (string-empty-p labels)))
                     (list (etaf-node 'text
                                      (list :color (etaf-md-preview--env-color env :muted))
-                                     (list labels))))
-                  (list (etaf-md-preview--divider)))))))
+                                     (list labels)))))))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Inline rendering
@@ -451,11 +456,12 @@ as a bordered placeholder that opens in the browser."
     (etaf-node 'column
                (list :id (plist-get block :id)
                      :width 'stretch
-                     :margin (list (list 'lh (if (<= level 2) 1 1)) (list 'ch 0))
+                     ;; Headings carry no margin or rule of their own: the block
+                     ;; flow separates every sibling with exactly one blank
+                     ;; line, including heading-to-heading.
+                     :margin '((lh 0) (ch 0))
                      :item-gap '(lh 0))
-               (append children
-                       (when (<= level 2)
-                         (list (etaf-md-preview--divider)))))))
+               children)))
 
 (defun etaf-md-preview--code-block-node (block env)
   "Return the code block View of BLOCK in ENV."
@@ -739,9 +745,10 @@ The reading column is centered with flexible spacers and capped by ENV's
 `:width', so wide frames keep a readable measure and narrow frames fill.
 The cap only bounds the measure: the column itself is viewport-relative, so a
 window resize reflows through the renderer's own viewport update instead of
-rebuilding the document."
+rebuilding the document.  ENV's `:background', when set, paints the page;
+without it the buffer keeps the Emacs theme's own background."
   (let* ((width (max 24 (or (plist-get env :width) 92)))
-         (background (etaf-md-preview--env-color env :bg))
+         (background (plist-get env :background))
          (hero (etaf-md-preview--meta-node document env))
          (body (append
                 (when hero (list hero (etaf-md-preview--spacer)))
@@ -753,8 +760,9 @@ rebuilding the document."
                          (etaf-md-preview--spacer))
                    (etaf-md-preview--view-blocks footnotes env))))))
     (etaf-node 'flex
-               (list :flex-direction 'column :width '(vw 100)
-                     :background-color background)
+               (append (list :flex-direction 'column :width '(vw 100))
+                       (when background
+                         (list :background-color background)))
                (list
                 (etaf-node 'flex
                            (list :width 'stretch :align-items 'stretch)

@@ -28,7 +28,13 @@ All notable user-visible changes to ETAF Markdown Preview. This project follows
   a poster frame with a play caption; remote and missing media render labeled
   placeholder cards that open on activation.
 - Dark, light and sepia palettes, published as ETAF UI theme tokens, with
-  `t` cycling and `etaf-md-preview-set-theme` pinning.
+  `t` cycling and `etaf-md-preview-set-theme` pinning. The default
+  `etaf-md-preview-theme` value `auto` derives the document colors from the
+  active Emacs theme's faces and paints no page background, so panels, tables
+  and code blocks match whatever theme is in use.
+- User options for the initial palette, Markdown dialect and reading-measure
+  bounds (`etaf-md-preview-theme`, `etaf-md-preview-flavor`,
+  `etaf-md-preview-width-min`, `etaf-md-preview-width-max`).
 - Outline navigation (`n`/`p`, `TAB`), imenu integration, reloading, an
   adjustable maximum reading measure and whole-document native scrolling; a
   window resize reflows through the renderer's viewport update without
