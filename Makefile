@@ -7,8 +7,9 @@ SOURCES += lisp/etaf-md-preview-model.el lisp/etaf-md-preview-views.el
 SOURCES += lisp/etaf-md-preview-app.el etaf-md-preview.el
 SOURCES += $(wildcard examples/*.el)
 SOURCES += scripts/md-preview-gui-probe.el
+SOURCES += benchmarks/refit-latency.el
 
-.PHONY: compile load check clean structure-check setup-hooks acceptance api-check test benchmark
+.PHONY: compile load check clean structure-check setup-hooks acceptance api-check test benchmark refit-benchmark
 
 compile:
 	rm -f *.elc lisp/*.elc tests/*.elc examples/*.elc scripts/*.elc
@@ -36,6 +37,9 @@ api-check:
 
 benchmark:
 	$(EMACS) -Q --batch $(LOAD_PATH) --eval '(setq load-prefer-newer t)' -l benchmarks/render-large-document.el
+
+refit-benchmark:
+	$(EMACS) -Q --batch $(LOAD_PATH) --eval '(setq load-prefer-newer t)' -l benchmarks/refit-latency.el
 
 test: acceptance
 
