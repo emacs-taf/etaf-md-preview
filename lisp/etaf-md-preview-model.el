@@ -342,8 +342,10 @@ background visible instead."
 (defun etaf-md-preview--session-palette (session)
   "Return SESSION's surface palette, or nil for the named palette colors.
 Sessions created with the `auto' theme derive their surfaces from the active
-frame's faces, so panels, tables and code blocks match the user's own theme."
-  (when (eq (plist-get session :theme-source) 'frame)
+frame's faces, so panels, tables and code blocks match the user's own theme.
+A session that has not selected a palette explicitly (including one created
+before this option existed) uses the face-derived palette."
+  (unless (eq (plist-get session :theme-source) 'palette)
     (etaf-md-preview--palette-from-faces)))
 
 (defun etaf-md-preview--env (session)
