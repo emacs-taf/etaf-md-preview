@@ -573,41 +573,47 @@ alignment stays visible at a glance."
                        (plist-get block :rows)))
          (last-row (1- (length rows)))
          (border (list '(px 1) 'solid (etaf-md-preview--env-color env :border)))
-         (cells nil))
+         (grids nil))
     (cl-loop for row in rows
              for row-index from 0
-             do (cl-loop for inlines in row
-                         for align in aligns
-                         for column-index from 0
-                         do (push
-                             (etaf-node 'box
-                                        (list :padding '((lh 0) (ch 1))
-                                              :width 'stretch
-                                              :wrap-mode 'char
-                                              :text-align (or align 'left)
-                                              :border-bottom (and (/= row-index last-row)
-                                                                  border)
-                                              :border-right (and (/= column-index
-                                                                     (1- columns))
-                                                                 border)
-                                              :background-color
-                                              (cond
-                                               ((zerop row-index)
-                                                (etaf-md-preview--env-color env :table-header))
-                                               ((zerop (% row-index 2))
-                                                (etaf-md-preview--env-color env :table-stripe))
-                                               (t nil)))
-                                        (etaf-md-preview--runs-view
-                                         inlines env
-                                         (when (zerop row-index) (list :bold t))))
-                             cells)))
+             do (let ((cells nil))
+                  (cl-loop for inlines in row
+                           for align in aligns
+                           for column-index from 0
+                           do (push
+                               (etaf-node 'box
+                                          (list :padding '((lh 0) (ch 1))
+                                                :width 'stretch
+                                                :overflow 'hidden
+                                                :wrap-mode 'char
+                                                :text-align (or align 'left)
+                                                :border-bottom (and (/= row-index last-row)
+                                                                    border)
+                                                :border-right (and (/= column-index
+                                                                       (1- columns))
+                                                                   border)
+                                                :background-color
+                                                (cond
+                                                 ((zerop row-index)
+                                                  (etaf-md-preview--env-color env :table-header))
+                                                 ((zerop (% row-index 2))
+                                                  (etaf-md-preview--env-color env :table-stripe))
+                                                 (t nil)))
+                                          (etaf-md-preview--runs-view
+                                           inlines env
+                                           (when (zerop row-index) (list :bold t))))
+                               cells))
+                  ;; One grid per row keeps every row's columns aligned by the
+                  ;; same fractional tracks while staying within the layouts
+                  ;; the native renderer can accelerate.
+                  (push (etaf-node 'grid
+                                   (list :width 'stretch
+                                         :grid-template-columns (make-list columns '(fr 1)))
+                                   (nreverse cells))
+                        grids)))
     (etaf-node 'box
                (list :width 'stretch :border border)
-               (list
-                (etaf-node 'grid
-                           (list :width 'stretch
-                                 :grid-template-columns (make-list columns '(fr 1)))
-                           (nreverse cells))))))
+               (nreverse grids))))
 
 (defun etaf-md-preview--thematic-break-node ()
   "Return the thematic break View."
