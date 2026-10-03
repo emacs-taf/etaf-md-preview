@@ -120,5 +120,44 @@ missing heading outline, and links that lost their activation keymap."
         (push "the document has no outline" problems)))
     (nreverse problems)))
 
+(defun etaf-md-preview-gui-table-boundaries (header)
+  "Check every displayed table row below HEADER against its column boundaries.
+Measure actual screen positions, not string widths: post-publication font
+changes can invalidate layout measurements.  The entire table must be visible.
+Return its row boundary lists or signal an error for missing or shifted edges."
+  (let* ((buffer (plist-get etaf-md-preview-gui--session :buffer))
+         (window (get-buffer-window buffer t))
+         rows expected)
+    (unless (window-live-p window)
+      (error "Preview has no displayed window"))
+    (with-current-buffer buffer
+      (save-excursion
+        (goto-char (point-min))
+        (search-forward header)
+        (beginning-of-line)
+        (let ((continue t))
+          (while (and continue (not (eobp)))
+            (let ((position (point)) (end (line-end-position)) edges)
+              (while (< position end)
+                (when (equal (get-text-property position 'display)
+                             '(space :width (1)))
+                  (let ((screen (posn-at-point position window)))
+                    (unless screen
+                      (error "Table row %d is not visible" (line-number-at-pos)))
+                    (push (car (posn-x-y screen)) edges)))
+                (setq position (1+ position)))
+              (setq edges (nreverse edges))
+              (if (null edges)
+                  (setq continue nil)
+                (unless expected (setq expected edges))
+                (unless (equal expected edges)
+                  (error "Table row %d boundaries %S differ from %S"
+                         (line-number-at-pos) edges expected))
+                (push edges rows)))
+            (forward-line 1)))))
+    (unless (> (length rows) 1)
+      (error "No complete table found for %s" header))
+    (nreverse rows)))
+
 (provide 'md-preview-gui-probe)
 ;;; md-preview-gui-probe.el ends here
