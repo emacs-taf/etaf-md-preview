@@ -11,6 +11,11 @@
   "support": [],
   "cases": [
     {
+      "name": "etaf-md-preview-tests-reading-measure-stays-centered-on-refit",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Wide and narrow viewport refits keep the capped reading measure centered at its measured pixel position."
+    },
+    {
       "name": "etaf-md-preview-tests-heading-links-override-heading-color",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Links in all six heading levels retain accent color, heading weight and working activation without duplicate properties."

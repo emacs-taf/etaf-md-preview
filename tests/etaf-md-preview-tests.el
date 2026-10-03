@@ -165,6 +165,20 @@ fallback prints the same shape as dots, so both are recognized."
         (call-interactively (key-binding (kbd "RET")))))
     (should (equal opened (list video)))))
 
+(ert-deftest etaf-md-preview-tests-reading-measure-stays-centered-on-refit ()
+  "A capped reading measure stays centered without stretching its content."
+  (let* ((session (etaf-md-preview-create :text "CenterProbe"))
+         (cap (* (frame-char-width)
+                 (plist-get (etaf-md-preview-state session) :width))))
+    (etaf-md-preview-tests--with-mount session
+      (dolist (width (list (+ cap 100) (+ cap 300) (max 40 (- cap 20)) (+ cap 100)))
+        (etaf-runtime-refit (etaf-runtime-for-buffer (current-buffer)) width 60)
+        (goto-char (point-min))
+        (search-forward "CenterProbe")
+        (let ((left (string-pixel-width
+                     (buffer-substring (line-beginning-position) (match-beginning 0)))))
+          (should (<= (abs (- left (/ (max 0 (- width cap)) 2))) 1)))))))
+
 (ert-deftest etaf-md-preview-tests-render-block-structure ()
   "Headings, lists, tasks, quotes, code and tables all reach the buffer."
   (let ((session (etaf-md-preview-create

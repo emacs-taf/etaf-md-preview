@@ -752,7 +752,7 @@ TIGHT drops the blank line between consecutive blocks."
 
 (defun etaf-md-preview--view-document (document env)
   "Return the mounted reading View of DOCUMENT in ENV.
-The reading column is centered with flexible spacers and capped by ENV's
+The reading column uses cross-axis centering and is capped by ENV's
 `:width', so wide frames keep a readable measure and narrow frames fill.
 The cap only bounds the measure: the column itself is viewport-relative, so a
 window resize reflows through the renderer's own viewport update instead of
@@ -770,30 +770,18 @@ without it the buffer keeps the Emacs theme's own background."
                          (etaf-md-preview--divider "脚注")
                          (etaf-md-preview--spacer))
                    (etaf-md-preview--view-blocks footnotes env))))))
-    (etaf-node 'flex
-               (append (list :flex-direction 'column :width '(vw 100))
+    (etaf-node 'column
+               (append (list :width '(vw 100) :cross-align 'center)
                        (when background
                          (list :background-color background)))
                (list
-                (etaf-node 'flex
-                           (list :width 'stretch :align-items 'stretch)
-                           (list
-                            (etaf-node 'box
-                                       (list :flex-grow 1 :flex-basis '(ch 0)
-                                             :min-width '(ch 0))
-                                       nil)
-                            (etaf-node 'column
-                                       (list :width 'stretch
-                                             :max-width (list 'ch width)
-                                             :flex-shrink 1
-                                             :padding (list (list 'lh 1) (list 'ch 0))
-                                             :item-gap '(lh 0)
-                                             :color (etaf-md-preview--env-color env :ink))
-                                       body)
-                            (etaf-node 'box
-                                       (list :flex-grow 1 :flex-basis '(ch 0)
-                                             :min-width '(ch 0))
-                                       nil)))))))
+                (etaf-node 'column
+                           (list :width 'stretch
+                                 :max-width (list 'ch width)
+                                 :padding (list (list 'lh 1) (list 'ch 0))
+                                 :item-gap '(lh 0)
+                                 :color (etaf-md-preview--env-color env :ink))
+                           body)))))
 
 (provide 'etaf-md-preview-views)
 ;;; etaf-md-preview-views.el ends here
