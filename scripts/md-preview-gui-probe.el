@@ -127,7 +127,7 @@ changes can invalidate layout measurements.  The entire table must be visible.
 Return its row boundary lists or signal an error for missing or shifted edges."
   (let* ((buffer (plist-get etaf-md-preview-gui--session :buffer))
          (window (get-buffer-window buffer t))
-         rows expected)
+         rows expected border-color)
     (unless (window-live-p window)
       (error "Preview has no displayed window"))
     (with-current-buffer buffer
@@ -141,10 +141,20 @@ Return its row boundary lists or signal an error for missing or shifted edges."
               (while (< position end)
                 (when (equal (get-text-property position 'display)
                              '(space :width (1)))
-                  (let ((screen (posn-at-point position window)))
-                    (unless screen
-                      (error "Table row %d is not visible" (line-number-at-pos)))
-                    (push (car (posn-x-y screen)) edges)))
+                  (let* ((face (get-text-property position 'face))
+                         (faces (if (keywordp (car-safe face)) (list face) face))
+                         (color (seq-some
+                                 (lambda (entry)
+                                   (and (listp entry) (plist-get entry :background)))
+                                 faces)))
+                    ;; A one-pixel filler is not a border.  Use the first
+                    ;; outer edge's paint to distinguish them at narrow widths.
+                    (unless border-color (setq border-color color))
+                    (when (and color (equal color border-color))
+                      (let ((screen (posn-at-point position window)))
+                        (unless screen
+                          (error "Table row %d is not visible" (line-number-at-pos)))
+                        (push (car (posn-x-y screen)) edges)))))
                 (setq position (1+ position)))
               (setq edges (nreverse edges))
               (if (null edges)
