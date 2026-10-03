@@ -86,5 +86,46 @@
       (lambda ()
         (when (buffer-live-p buffer) (kill-buffer buffer)))))))
 
+(taf-benchmark-register
+ "md-preview.mount.manual" :version 1 :modes '(batch gui) :budget-ms 100
+ :impact 'local
+ :description "Parse and mount the complete manual into a fresh buffer"
+ :setup
+ (lambda (mode)
+   (let ((buffer (generate-new-buffer " *TAF md-preview mount*"))
+         sink report)
+     (list
+      :buffer buffer
+      :environment #'etaf-md-preview-benchmark--environment
+      :invoke
+      (lambda (_sample)
+        (let ((session (etaf-md-preview-create :file etaf-md-preview-benchmark--file)))
+          (etaf-mount
+           buffer (etaf-md-preview-view session)
+           (append
+            (when (eq mode 'batch) '(:viewport-width 900 :viewport-height 50))
+            (list :observer
+                  (lambda (observed-report)
+                    (when (eq (plist-get observed-report :provider) 'ebox)
+                      (setq report observed-report))
+                    (when sink (funcall sink buffer observed-report))))))))
+      :verify
+      (lambda ()
+        (with-current-buffer buffer
+          (cond
+           ((not (etaf-runtime-for-buffer buffer)) "The manual did not mount")
+           ((not (string-match-p "ETAF Markdown Preview 用户手册"
+                                (buffer-substring-no-properties (point-min) (point-max))))
+            "The mounted manual has no title")
+           ((and (ebox-native-reflow-layout-ready-p)
+                 (not (eq (plist-get report :projection-kind) 'native-frame)))
+            (format "Mount fell back to %S" (plist-get report :projection-kind)))
+           (t t))))
+      :observe (lambda (observer)
+                 (setq sink observer)
+                 (lambda () (setq sink nil)))
+      :cleanup (lambda ()
+                 (when (buffer-live-p buffer) (kill-buffer buffer)))))))
+
 (provide 'performance-scenarios)
 ;;; performance-scenarios.el ends here
