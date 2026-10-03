@@ -11,6 +11,11 @@
   "support": [],
   "cases": [
     {
+      "name": "etaf-md-preview-tests-alerts-end-with-their-body",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "All five callout kinds preserve explicit body line breaks and end without an extra padded row, retaining one normal inter-block blank line."
+    },
+    {
       "name": "etaf-md-preview-tests-reading-measure-stays-centered-on-refit",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Wide and narrow viewport refits keep the capped reading measure centered at its measured pixel position."

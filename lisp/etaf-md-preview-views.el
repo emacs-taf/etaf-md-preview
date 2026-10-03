@@ -510,7 +510,7 @@ quote keeps the muted surface and the accent bar."
                            :background-color soft
                            :border-left (list '(px 3) 'solid color)
                            :padding-top '(lh 0)
-                           :padding-bottom '(lh 1)
+                           :padding-bottom '(lh 0)
                            :padding-left '(ch 2)
                            :padding-right '(ch 2))
                      (append

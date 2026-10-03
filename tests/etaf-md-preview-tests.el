@@ -179,6 +179,23 @@ fallback prints the same shape as dots, so both are recognized."
                      (buffer-substring (line-beginning-position) (match-beginning 0)))))
           (should (<= (abs (- left (/ (max 0 (- width cap)) 2))) 1)))))))
 
+(ert-deftest etaf-md-preview-tests-alerts-end-with-their-body ()
+  "Callouts add no empty row after the final body line."
+  (dolist (kind '("NOTE" "TIP" "IMPORTANT" "WARNING" "CAUTION"))
+    (let ((session (etaf-md-preview-create
+                    :text (format "> [!%s]\n> First  \n> Last\n\nTail" kind))))
+      (etaf-md-preview-tests--with-mount session
+        (goto-char (point-min))
+        (search-forward "First")
+        (forward-line 1)
+        (should (search-forward "Last" (line-end-position) t))
+        (forward-line 1)
+        (should (string-blank-p
+                 (buffer-substring-no-properties
+                  (line-beginning-position) (line-end-position))))
+        (forward-line 1)
+        (should (search-forward "Tail" (line-end-position) t))))))
+
 (ert-deftest etaf-md-preview-tests-render-block-structure ()
   "Headings, lists, tasks, quotes, code and tables all reach the buffer."
   (let ((session (etaf-md-preview-create

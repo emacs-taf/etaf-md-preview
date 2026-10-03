@@ -8,6 +8,8 @@ All notable user-visible changes to ETAF Markdown Preview. This project follows
 
 ### Fixed
 
+- Note, tip, important, warning and caution callouts end at their last body
+  line without an extra padded blank row; normal block spacing is unchanged.
 - Heading links override the heading color without duplicate properties, keep
   the heading typography, and remain inline with surrounding heading text.
 - The video play caption activates the same desktop-player action as its poster;
