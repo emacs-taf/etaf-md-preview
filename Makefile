@@ -8,6 +8,7 @@ SOURCES += lisp/etaf-md-preview-app.el etaf-md-preview.el
 SOURCES += $(wildcard examples/*.el)
 SOURCES += scripts/md-preview-gui-probe.el
 SOURCES += benchmarks/refit-latency.el
+SOURCES += benchmarks/performance-scenarios.el
 
 .PHONY: compile load check clean structure-check setup-hooks acceptance api-check test benchmark refit-benchmark
 
