@@ -6,6 +6,13 @@ All notable user-visible changes to ETAF Markdown Preview. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Heading links override the heading color without duplicate properties, keep
+  the heading typography, and remain inline with surrounding heading text.
+- The video play caption activates the same desktop-player action as its poster;
+  pressing RET on the caption no longer leaves the video unopened.
+
 ## [0.1.0] - 2026-10-03
 
 ### Added

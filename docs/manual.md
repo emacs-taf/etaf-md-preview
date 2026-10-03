@@ -55,7 +55,10 @@ preview needs:
 
 Image syntax and HTML `<img>` / `<video>` tags render as media cards. Relative paths resolve against the document's directory. A local image
 renders through ETAF's image Host; a local video renders a poster frame and a
-play caption. Remote images render a labeled placeholder whose activation
+play caption. Activate either the video poster or its caption with RET to open
+it in the operating system's default player. Playback happens in that player,
+not inside the Emacs poster; use the player's play control if it opens paused.
+Remote images render a labeled placeholder whose activation
 opens the URL. A missing or unreadable file renders a placeholder card, never
 an error.
 

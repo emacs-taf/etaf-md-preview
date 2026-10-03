@@ -221,7 +221,13 @@ BASE is a run-attribute plist (`:bold', `:italic', `:strike', `:code',
           (push view nodes)
         (let* ((attributes (plist-get run :props))
                (text (plist-get run :text))
-               (props (append extra (etaf-md-preview--run-props attributes env)))
+               (props (let ((merged (copy-sequence extra))
+                            (inline (etaf-md-preview--run-props attributes env)))
+                        ;; Heading typography supplies defaults; an inline
+                        ;; link or code span overrides only its own properties.
+                        (while inline
+                          (setq merged (plist-put merged (pop inline) (pop inline))))
+                        merged))
                (url (plist-get attributes :link))
                (props (if url
                           (append props
@@ -387,14 +393,14 @@ as a bordered placeholder that opens in the browser."
                                :adapter 'auto)
                          nil)))
         (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center :item-gap '(lh 0))
+                   (list :width 'stretch :cross-align 'center :item-gap '(lh 0)
+                         :on-press open :role 'button :tab-index 0
+                         :pointer 'hand
+                         :help-echo (format "%s（按 RET 播放）" caption))
                    (list
                     (etaf-node 'box
                                (list :border (list '(px 1) 'solid
-                                                   (etaf-md-preview--env-color env :border))
-                                     :on-press open :role 'button :tab-index 0
-                                     :pointer 'hand
-                                     :help-echo (format "%s（按 RET 播放）" caption))
+                                                   (etaf-md-preview--env-color env :border)))
                                (list poster))
                     (etaf-md-preview--caption-view
                      (format "▶ %s　·　按 RET 播放" caption)
@@ -453,14 +459,13 @@ as a bordered placeholder that opens in the browser."
            (plist-get block :children) env (list :bold t)
            (list :font-size (etaf-md-preview--heading-pixels level)
                  :color color))))
-    (etaf-node 'column
+    (etaf-node 'box
                (list :id (plist-get block :id)
                      :width 'stretch
                      ;; Headings carry no margin or rule of their own: the block
                      ;; flow separates every sibling with exactly one blank
                      ;; line, including heading-to-heading.
-                     :margin '((lh 0) (ch 0))
-                     :item-gap '(lh 0))
+                     :margin '((lh 0) (ch 0)))
                children)))
 
 (defun etaf-md-preview--code-block-node (block env)

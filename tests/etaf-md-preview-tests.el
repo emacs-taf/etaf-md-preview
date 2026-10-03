@@ -113,6 +113,58 @@ fallback prints the same shape as dots, so both are recognized."
       (should (eq (etaf-md-preview-tests--face-attribute "italic" :slant) 'italic))
       (should (etaf-md-preview-tests--keymap-at "site")))))
 
+(ert-deftest etaf-md-preview-tests-heading-links-override-heading-color ()
+  "Links in every heading keep link color, heading weight and activation."
+  (let ((session (etaf-md-preview-create
+                  :text (concat
+                         (mapconcat
+                          (lambda (level)
+                            (format "%s Heading%d [Link%d](https://example.com/%d)"
+                                    (make-string level ?#) level level level))
+                          '(1 2 3 4 5 6) "\n\n")
+                         "\n\n[Reference](https://example.com/)\n")
+                  :theme 'dark))
+        opened)
+    (etaf-md-preview-tests--with-mount session
+      (let ((accent (etaf-md-preview-tests--face-attribute "Reference" :foreground)))
+        (dolist (level '(1 2 3 4 5 6))
+          (let ((link (format "Link%d" level)))
+            (should (string-match-p
+                     (format "Heading%d Link%d" level level)
+                     (buffer-substring-no-properties (point-min) (point-max))))
+            (should (equal (etaf-md-preview-tests--face-attribute link :foreground)
+                           accent))
+            (should-not (equal (etaf-md-preview-tests--face-attribute
+                               (format "Heading%d" level) :foreground) accent))
+            (should (eq (etaf-md-preview-tests--face-attribute link :weight) 'bold))
+            (should (etaf-md-preview-tests--keymap-at link))
+            (goto-char (match-beginning 0))
+            (cl-letf (((symbol-function 'browse-url)
+                       (lambda (url &rest _) (push url opened))))
+              (call-interactively (key-binding (kbd "RET"))))))))
+    (should (equal (nreverse opened)
+                   (mapcar (lambda (n) (format "https://example.com/%d" n))
+                           '(1 2 3 4 5 6))))))
+
+(ert-deftest etaf-md-preview-tests-video-caption-activates-player ()
+  "The caption that advertises RET to play is itself an activation target."
+  (skip-unless (memq system-type '(darwin gnu/linux)))
+  (let* ((video (expand-file-name "../examples/demo.mp4"
+                                  etaf-md-preview-tests--directory))
+         (session (etaf-md-preview-create :text (format "![Movie](%s)" video)))
+         (real (symbol-function 'call-process))
+         opened)
+    (etaf-md-preview-tests--with-mount session
+      (should (etaf-md-preview-tests--keymap-at "按 RET 播放"))
+      (goto-char (match-beginning 0))
+      (cl-letf (((symbol-function 'call-process)
+                 (lambda (program &rest args)
+                   (if (member program '("open" "xdg-open"))
+                       (progn (push (car (last args)) opened) 0)
+                     (apply real program args)))))
+        (call-interactively (key-binding (kbd "RET")))))
+    (should (equal opened (list video)))))
+
 (ert-deftest etaf-md-preview-tests-render-block-structure ()
   "Headings, lists, tasks, quotes, code and tables all reach the buffer."
   (let ((session (etaf-md-preview-create

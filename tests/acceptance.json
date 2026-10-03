@@ -11,6 +11,16 @@
   "support": [],
   "cases": [
     {
+      "name": "etaf-md-preview-tests-heading-links-override-heading-color",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Links in all six heading levels retain accent color, heading weight and working activation without duplicate properties."
+    },
+    {
+      "name": "etaf-md-preview-tests-video-caption-activates-player",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "RET on the visible video play caption opens the local video through the desktop player."
+    },
+    {
       "name": "etaf-md-preview-tests-create-reports-document-state",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Creating a session from text exposes title, outline and footnotes."
