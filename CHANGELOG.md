@@ -6,6 +6,14 @@ All notable user-visible changes to ETAF Markdown Preview. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- Media cards reuse the measured pixel size of an unchanged file instead of
+  re-probing it on every preview. The probe records path, size and
+  modification time, so an updated image or video is still measured from its
+  new bytes. Terminal frames render the media placeholder without attempting
+  a pixel probe that needs a graphic frame.
+
 ### Fixed
 
 - Note, tip, important, warning and caution callouts end at their last body

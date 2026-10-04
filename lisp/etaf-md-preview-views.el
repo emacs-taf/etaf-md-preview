@@ -286,18 +286,53 @@ BASE is a run-attribute plist (`:bold', `:italic', `:strike', `:code',
                 path)))
     (expand-file-name path (or (plist-get env :dir) default-directory))))
 
-(defun etaf-md-preview--image-pixels (path)
-  "Return PATH's pixel size as (WIDTH . HEIGHT), or nil.
-Emacs caches images by file name, so drop PATH's entry first; a preview that
-reloads an updated file must measure the bytes on disk, not the previous
-render."
+(defconst etaf-md-preview--media-pixels-cache-limit 256
+  "Maximum file pixel probes retained per process.")
+
+(defvar etaf-md-preview--media-pixels-cache (make-hash-table :test #'equal)
+  "Pixel probes keyed by file identity (path, size and modification time).
+Repeated previews of an unchanged file reuse the measured size; a changed
+size or timestamp re-probes the bytes on disk.")
+
+(defun etaf-md-preview--media-pixels-cached (path prober)
+  "Return PATH's (WIDTH . HEIGHT) from PROBER, reusing unchanged file probes.
+PATH without readable attributes is probed directly."
+  (let* ((attributes (file-attributes path))
+         (key (and attributes
+                   (list (expand-file-name path)
+                         (file-attribute-size attributes)
+                         (file-attribute-modification-time attributes))))
+         (missing (make-symbol "missing-media-pixels")))
+    (if (null key)
+        (funcall prober path)
+      (let ((cached (gethash key etaf-md-preview--media-pixels-cache missing)))
+        (if (not (eq cached missing))
+            cached
+          (when (> (hash-table-count etaf-md-preview--media-pixels-cache)
+                   etaf-md-preview--media-pixels-cache-limit)
+            (clrhash etaf-md-preview--media-pixels-cache))
+          (puthash key (funcall prober path)
+                   etaf-md-preview--media-pixels-cache))))))
+
+(defun etaf-md-preview--probe-image-pixels (path)
+  "Return PATH's image pixel size as (WIDTH . HEIGHT), or nil.
+Drop PATH's entry first so an updated file is measured from its bytes rather
+than the previous render."
   (ignore-errors
     (clear-image-cache path)
     (when-let* ((image (create-image path nil nil)))
       (let ((size (image-size image t)))
         (cons (car size) (cdr size))))))
 
-(defun etaf-md-preview--video-pixels (path)
+(defun etaf-md-preview--image-pixels (path)
+  "Return PATH's pixel size as (WIDTH . HEIGHT), or nil.
+Pixel measurement needs a graphic frame; a terminal frame renders the media
+placeholder without probing.  Unchanged files reuse their cached probe."
+  (when (display-graphic-p)
+    (etaf-md-preview--media-pixels-cached
+     path #'etaf-md-preview--probe-image-pixels)))
+
+(defun etaf-md-preview--probe-video-pixels (path)
   "Return PATH's video pixel size as (WIDTH . HEIGHT), or nil."
   (when-let* ((ffprobe (executable-find "ffprobe")))
     (ignore-errors
@@ -310,6 +345,12 @@ render."
             (when (string-match "\\`\\([0-9]+\\)x\\([0-9]+\\)" line)
               (cons (string-to-number (match-string 1 line))
                     (string-to-number (match-string 2 line))))))))))
+
+(defun etaf-md-preview--video-pixels (path)
+  "Return PATH's video pixel size as (WIDTH . HEIGHT), or nil.
+Unchanged files reuse their cached probe."
+  (etaf-md-preview--media-pixels-cached
+   path #'etaf-md-preview--probe-video-pixels))
 
 (defun etaf-md-preview--media-grid (path kind max-columns)
   "Return the (COLUMNS . ROWS) grid for media PATH of KIND.
