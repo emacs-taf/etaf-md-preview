@@ -147,8 +147,10 @@ fallback prints the same shape as dots, so both are recognized."
                            '(1 2 3 4 5 6))))))
 
 (ert-deftest etaf-md-preview-tests-video-caption-activates-player ()
-  "The caption that advertises RET to play is itself an activation target."
-  (skip-unless (memq system-type '(darwin gnu/linux)))
+  "RET on a video caption starts playback inside the preview.
+With a decoder the press must not leave the card for an external player, and
+the repaint swaps the poster for the native canvas."
+  (skip-unless (executable-find "ffmpeg"))
   (let* ((video (expand-file-name "../examples/demo.mp4"
                                   etaf-md-preview-tests--directory))
          (session (etaf-md-preview-create :text (format "![Movie](%s)" video)))
@@ -162,7 +164,66 @@ fallback prints the same shape as dots, so both are recognized."
                    (if (member program '("open" "xdg-open"))
                        (progn (push (car (last args)) opened) 0)
                      (apply real program args)))))
-        (call-interactively (key-binding (kbd "RET")))))
+        (call-interactively (key-binding (kbd "RET"))))
+      (sit-for 0.2)
+      (goto-char (point-min))
+      (should (search-forward "按 RET 播放/暂停" nil t)))
+    (should-not opened)))
+
+(ert-deftest etaf-md-preview-tests-video-ret-toggles-playback-in-place ()
+  "RET on the live player toggles playback without restarting it.
+The canvas advances while playing, holds its last frame once paused, and
+moves on from that frame when playback resumes."
+  (skip-unless (executable-find "ffmpeg"))
+  (let ((session (etaf-md-preview-create
+                  :text (format "![clip](%s)\n"
+                                (etaf-md-preview-tests--fixture "clip.mp4")))))
+    (etaf-md-preview-tests--with-mount session
+      (goto-char (point-min))
+      (search-forward "按 RET 播放" nil t)
+      (goto-char (match-beginning 0))
+      (call-interactively (key-binding (kbd "RET")))
+      (let ((playing (buffer-string)))
+        (sit-for 0.5)
+        (should-not (equal playing (buffer-string))))
+      (goto-char (point-min))
+      (search-forward "按 RET 播放/暂停" nil t)
+      (goto-char (match-beginning 0))
+      (call-interactively (key-binding (kbd "RET")))
+      (sit-for 0.4)
+      (let ((paused (buffer-string)))
+        (sit-for 0.5)
+        (should (equal paused (buffer-string)))
+        (call-interactively (key-binding (kbd "RET")))
+        (sit-for 0.6)
+        (should-not (equal paused (buffer-string)))))))
+
+(ert-deftest etaf-md-preview-tests-video-without-decoder-opens-externally ()
+  "Without ffmpeg a local video card keeps the poster and opens externally.
+The card renders once with whatever decoder the environment provides and
+again with ffmpeg hidden; the second render must use its own poster probe
+instead of the cached playback metadata."
+  (skip-unless (memq system-type '(darwin gnu/linux)))
+  (let* ((video (expand-file-name "../examples/demo.mp4"
+                                  etaf-md-preview-tests--directory))
+         (session (etaf-md-preview-create :text (format "![Movie](%s)" video)))
+         (real-process (symbol-function 'call-process))
+         (real-find (symbol-function 'executable-find))
+         opened)
+    (etaf-md-preview-tests--with-mount session)
+    (cl-letf (((symbol-function 'executable-find)
+               (lambda (program &optional remote)
+                 (unless (equal program "ffmpeg")
+                   (funcall real-find program remote)))))
+      (etaf-md-preview-tests--with-mount session
+        (should (etaf-md-preview-tests--keymap-at "按 RET 播放"))
+        (goto-char (match-beginning 0))
+        (cl-letf (((symbol-function 'call-process)
+                   (lambda (program &rest args)
+                     (if (member program '("open" "xdg-open"))
+                         (progn (push (car (last args)) opened) 0)
+                       (apply real-process program args)))))
+          (call-interactively (key-binding (kbd "RET"))))))
     (should (equal opened (list video)))))
 
 (ert-deftest etaf-md-preview-tests-reading-measure-stays-centered-on-refit ()
@@ -254,6 +315,18 @@ roughly 9:1 while the visible cell grid must stay close to the source."
         (should (> rows 1))
         (should (> columns 1))
         (should (< (abs (- (/ (* 1.0 columns) rows) 4.0)) 1.2))))))
+
+(ert-deftest etaf-md-preview-tests-video-card-plays-with-a-native-decoder ()
+  "A local video card offers inline playback when ffmpeg can decode it.
+The card starts as a poster and names the action that mounts the player."
+  (skip-unless (executable-find "ffmpeg"))
+  (let ((session (etaf-md-preview-create
+                  :text (format "![clip](%s)\n"
+                                (etaf-md-preview-tests--fixture "clip.mp4")))))
+    (etaf-md-preview-tests--with-mount session
+      (let ((text (substring-no-properties (buffer-string))))
+        (should (string-match-p "▶ clip" text))
+        (should (string-match-p "按 RET 播放" text))))))
 
 (ert-deftest etaf-md-preview-tests-local-media-opens-with-the-desktop ()
   "RET on a local media card asks the desktop to open the file.

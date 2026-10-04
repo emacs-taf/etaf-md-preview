@@ -10,7 +10,7 @@ of repeating signatures.
 | --- | --- |
 | `n` / `p` | Move to the next / previous heading of the document |
 | `TAB` | Choose a heading from a completion list |
-| `RET`, mouse-1 | Activate the link, image or video under point |
+| `RET`, mouse-1 | Activate the link or image under point; play or pause a video |
 | `r` | Re-read the file and repaint |
 | `t` | Cycle the palette (dark, light, sepia) |
 | `[` / `]` | Narrow / widen the maximum reading measure by four columns |
@@ -54,10 +54,12 @@ preview needs:
 `(:tables t :task-lists nil)` toggles individual extensions.
 
 Image syntax and HTML `<img>` / `<video>` tags render as media cards. Relative paths resolve against the document's directory. A local image
-renders through ETAF's image Host; a local video renders a poster frame and a
-play caption. Activate either the video poster or its caption with RET to open
-it in the operating system's default player. Playback happens in that player,
-not inside the Emacs poster; use the player's play control if it opens paused.
+renders through ETAF's image Host; a local video starts as a still poster
+(its first frame through the image Host) and RET (or a click) mounts the
+native video Component to play it in place. Further presses on the playing
+card toggle play/pause without leaving Emacs. Without ffmpeg on `exec-path`
+the card keeps the poster and RET opens the video in the operating system's
+default player.
 Remote images render a labeled placeholder whose activation
 opens the URL. A missing or unreadable file renders a placeholder card, never
 an error.
@@ -133,8 +135,8 @@ outline).
   graphics support for that file, so Ebox fell back to its terminal
   converters; install ffmpeg for better terminal rendering, or view the file
   in a graphical frame.
-- **A video shows a placeholder instead of a poster.** ffmpeg is not
-  available on `exec-path`; the video still opens on activation.
+- **A video opens in the system player instead of playing inline.** ffmpeg is
+  not available on `exec-path`, so the card keeps its poster fallback.
 - **Theme changes do not repaint shared components.** The preview publishes
   its palette for its own subtree only; a surrounding application keeps its
   own theme context.

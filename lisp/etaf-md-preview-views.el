@@ -290,18 +290,22 @@ BASE is a run-attribute plist (`:bold', `:italic', `:strike', `:code',
   "Maximum file pixel probes retained per process.")
 
 (defvar etaf-md-preview--media-pixels-cache (make-hash-table :test #'equal)
-  "Pixel probes keyed by file identity (path, size and modification time).
-Repeated previews of an unchanged file reuse the measured size; a changed
-size or timestamp re-probes the bytes on disk.")
+  "Media probes keyed by file identity (path, size, modification time and prober).
+Repeated previews of an unchanged file reuse the probe result; a changed
+size or timestamp re-probes the bytes on disk.  One file can be measured by
+several probes (an image's pixel size, a video's pixel size and a video's
+playback metadata), so the prober is part of the key and a result never
+answers a different probe.")
 
 (defun etaf-md-preview--media-pixels-cached (path prober)
-  "Return PATH's (WIDTH . HEIGHT) from PROBER, reusing unchanged file probes.
+  "Return PATH's result from PROBER, reusing unchanged file probes.
 PATH without readable attributes is probed directly."
   (let* ((attributes (file-attributes path))
          (key (and attributes
                    (list (expand-file-name path)
                          (file-attribute-size attributes)
-                         (file-attribute-modification-time attributes))))
+                         (file-attribute-modification-time attributes)
+                         prober)))
          (missing (make-symbol "missing-media-pixels")))
     (if (null key)
         (funcall prober path)
@@ -352,18 +356,27 @@ Unchanged files reuse their cached probe."
   (etaf-md-preview--media-pixels-cached
    path #'etaf-md-preview--probe-video-pixels))
 
-(defun etaf-md-preview--media-grid (path kind max-columns)
-  "Return the (COLUMNS . ROWS) grid for media PATH of KIND.
-MAX-COLUMNS caps the width; the height follows the source aspect ratio and is
-capped to a third of the display so one figure cannot own the whole window.
-When the height cap applies, the width shrinks with it so the figure keeps the
-source aspect ratio instead of being squashed into a shorter box."
-  (let* ((pixels (pcase kind
-                   ('video (etaf-md-preview--video-pixels path))
-                   (_ (etaf-md-preview--image-pixels path))))
-         (cell-width (max 1 (frame-char-width)))
-         (cell-height (max 1 (frame-char-height)))
-         (max-rows (max 6 (round (* (window-body-height) 0.45)))))
+(defun etaf-md-preview--probe-video-source (path)
+  "Return PATH's native playback metadata, or nil when unsupported."
+  (ignore-errors (etaf-video-source-info path)))
+
+(defun etaf-md-preview--native-video-source (path)
+  "Return PATH's playback metadata when the native player can run it.
+Needs ffmpeg on `exec-path' and an ffprobe-readable source; unchanged files
+reuse their cached probe."
+  (when (executable-find "ffmpeg")
+    (etaf-md-preview--media-pixels-cached
+     path #'etaf-md-preview--probe-video-source)))
+
+(defun etaf-md-preview--media-grid-for-pixels (pixels max-columns)
+  "Return the (COLUMNS . ROWS) grid for PIXELS capped by MAX-COLUMNS.
+The height follows the source aspect ratio and is capped to a third of the
+display so one figure cannot own the whole window.  When the height cap
+applies, the width shrinks with it so the figure keeps the source aspect
+ratio instead of being squashed into a shorter box."
+  (let ((cell-width (max 1 (frame-char-width)))
+        (cell-height (max 1 (frame-char-height)))
+        (max-rows (max 6 (round (* (window-body-height) 0.45)))))
     (if pixels
         (let* ((pixel-width (car pixels))
                (pixel-height (cdr pixels))
@@ -381,6 +394,18 @@ source aspect ratio instead of being squashed into a shorter box."
                           columns)))
           (cons columns rows))
       (cons (min max-columns 48) 14))))
+
+(defun etaf-md-preview--media-grid (path kind max-columns)
+  "Return the (COLUMNS . ROWS) grid for media PATH of KIND.
+MAX-COLUMNS caps the width; the height follows the source aspect ratio and is
+capped to a third of the display so one figure cannot own the whole window.
+When the height cap applies, the width shrinks with it so the figure keeps the
+source aspect ratio instead of being squashed into a shorter box."
+  (etaf-md-preview--media-grid-for-pixels
+   (pcase kind
+     ('video (etaf-md-preview--video-pixels path))
+     (_ (etaf-md-preview--image-pixels path)))
+   max-columns))
 
 (defun etaf-md-preview--media-card (url alt env)
   "Return a media card View for URL with ALT in ENV.
@@ -425,7 +450,16 @@ as a bordered placeholder that opens in the browser."
                      (format "%s%s" (if (string-empty-p caption) "" "▲ ") caption)
                      env)))))
      ((and exists (eq kind 'video))
-      (let* ((grid (etaf-md-preview--media-grid path kind (- columns 2)))
+      (let* ((native (etaf-md-preview--native-video-source path))
+             (grid (if native
+                       (etaf-md-preview--media-grid-for-pixels
+                        (and (numberp (plist-get native :width))
+                             (numberp (plist-get native :height))
+                             (cons (plist-get native :width)
+                                   (plist-get native :height)))
+                        (- columns 2))
+                     (etaf-md-preview--media-grid path kind (- columns 2))))
+             (card (funcall (plist-get env :video-card) path))
              (poster
               (etaf-node 'image
                          (list :src path
@@ -433,19 +467,66 @@ as a bordered placeholder that opens in the browser."
                                :rows (cdr grid)
                                :adapter 'auto)
                          nil)))
-        (etaf-node 'column
-                   (list :width 'stretch :cross-align 'center :item-gap '(lh 0)
-                         :on-press open :role 'button :tab-index 0
-                         :pointer 'hand
-                         :help-echo (format "%s（按 RET 播放）" caption))
-                   (list
-                    (etaf-node 'box
-                               (list :border (list '(px 1) 'solid
-                                                   (etaf-md-preview--env-color env :border)))
-                               (list poster))
-                    (etaf-md-preview--caption-view
-                     (format "▶ %s　·　按 RET 播放" caption)
-                     env)))))
+        (cond
+         ((null native)
+          ;; No decoder: the poster card opens the system player as before.
+          (etaf-node 'column
+                     (list :width 'stretch :cross-align 'center :item-gap '(lh 0)
+                           :on-press open :role 'button :tab-index 0
+                           :pointer 'hand
+                           :help-echo (format "%s（按 RET 播放）" caption))
+                     (list
+                      (etaf-node 'box
+                                 (list :border (list '(px 1) 'solid
+                                                     (etaf-md-preview--env-color env :border)))
+                                 (list poster))
+                      (etaf-md-preview--caption-view
+                       (format "▶ %s　·　按 RET 播放" caption)
+                       env))))
+         ((funcall (plist-get env :video-active-p) (car card))
+          ;; Playing inline: RET toggles this card's playback.
+          (let ((handle (cdr card)))
+            (etaf-node 'column
+                       (list :width 'stretch :cross-align 'center :item-gap '(lh 0)
+                             :on-press (lambda ()
+                                         (etaf-video-toggle-playback handle))
+                             :role 'button :tab-index 0 :pointer 'hand
+                             :help-echo (format "%s（按 RET 播放/暂停）" caption))
+                       (list
+                        (etaf-node 'box
+                                   (list :border (list '(px 1) 'solid
+                                                       (etaf-md-preview--env-color env :border)))
+                                   (list
+                                    (etaf-node 'etaf-video
+                                               (list :src path
+                                                     :columns (car grid)
+                                                     :rows (cdr grid)
+                                                     :mode 'image
+                                                     :autoplay t
+                                                     :handle handle)
+                                               nil)))
+                        (etaf-md-preview--caption-view
+                         (format "▶ %s　·　按 RET 播放/暂停" caption)
+                         env)))))
+         (t
+          ;; A decoder is available, but decoding starts only when the
+          ;; reader asks for it: the card shows the poster until RET mounts
+          ;; the native player in place.
+          (let ((key (car card)))
+            (etaf-node 'column
+                       (list :width 'stretch :cross-align 'center :item-gap '(lh 0)
+                             :on-press (lambda ()
+                                         (funcall (plist-get env :activate-video) key))
+                             :role 'button :tab-index 0 :pointer 'hand
+                             :help-echo (format "%s（按 RET 内嵌播放）" caption))
+                       (list
+                        (etaf-node 'box
+                                   (list :border (list '(px 1) 'solid
+                                                       (etaf-md-preview--env-color env :border)))
+                                   (list poster))
+                        (etaf-md-preview--caption-view
+                         (format "▶ %s　·　按 RET 播放" caption)
+                         env))))))))
      (t
       (etaf-node 'column
                  (list :width 'stretch :cross-align 'center :item-gap '(lh 0))

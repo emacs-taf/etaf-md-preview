@@ -18,9 +18,10 @@
 ;; language tags, blockquotes, nested lists, task list markers, pipe tables,
 ;; thematic breaks, footnotes, clickable links and inline images, plus local
 ;; image and video cards whose poster frame is prepared through ETAF's image
-;; Host.  Front matter is stripped into document metadata.  The whole document
-;; publishes into one buffer with native Emacs scrolling, isearch and
-;; window splitting, so no pane owns a private scrolling model.
+;; Host; activating a video card plays it inline through ETAF's video
+;; Component.  Front matter is stripped into document metadata.  The whole
+;; document publishes into one buffer with native Emacs scrolling, isearch
+;; and window splitting, so no pane owns a private scrolling model.
 ;;
 ;; A session is the unit of state.  `etaf-md-preview-create' builds one from a
 ;; file or from text, `etaf-md-preview-open' displays it in its own buffer,

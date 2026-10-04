@@ -24,8 +24,10 @@ scrolling, isearch and window splitting keep working.
   plist that toggles individual extensions.
 - YAML front matter is stripped from the body and feeds the document title.
 - Local images render through ETAF's image Host (graphics in a graphical
-  frame, terminal conversion otherwise); local videos render a poster frame
-  through the same pipeline, with a play caption that opens the video.
+  frame, terminal conversion otherwise); a local video starts as a still
+  poster, and RET (or a click) mounts ETAF's native video Component to play it
+  in place, toggling play/pause on later presses.  Without ffmpeg the card
+  keeps the poster and opens the video in the system player.
 - Links open in the browser, jump to in-document headings, or open local files;
   a missing media file becomes a labeled card instead of an error.
 - Three fixed palettes (dark, light and sepia) plus a face-derived default
@@ -45,7 +47,7 @@ scrolling, isearch and window splitting keep working.
 | --- | --- | --- |
 | Emacs 29.1 or newer | the ETAF runtime and Ebox | `emacs --version` |
 | ETAF, ETAF UI, Ebox and ECSS on `load-path` | rendering and the component catalog | see Installation |
-| ffmpeg (optional) | video poster frames and terminal image conversion | `ffmpeg -version` |
+| ffmpeg (optional) | video playback and terminal image conversion | `ffmpeg -version` |
 
 ## Installation
 
@@ -75,7 +77,7 @@ M-x etaf-md-preview-open RET README.md RET
 | --- | --- |
 | `n` / `p` | next / previous heading |
 | `TAB` | choose a heading |
-| `RET` or mouse-1 | activate the link, image or video under point |
+| `RET` or mouse-1 | activate the link or image under point; play or pause a video |
 | `r` | re-read and repaint the document |
 | `t` | cycle dark / light / sepia |
 | `[` / `]` | narrow / widen the reading measure |

@@ -28,7 +28,17 @@
     {
       "name": "etaf-md-preview-tests-video-caption-activates-player",
       "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "RET on the visible video play caption opens the local video through the desktop player."
+      "purpose": "RET on a video caption starts inline playback when ffmpeg can decode it and never leaves the card to an external player."
+    },
+    {
+      "name": "etaf-md-preview-tests-video-ret-toggles-playback-in-place",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "RET on the live player pauses the canvas in place and resumes from the paused frame instead of restarting it."
+    },
+    {
+      "name": "etaf-md-preview-tests-video-without-decoder-opens-externally",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A local video without ffmpeg keeps its poster card and opens in the desktop player instead of mounting a player, even after an earlier render cached its playback metadata."
     },
     {
       "name": "etaf-md-preview-tests-create-reports-document-state",
@@ -59,6 +69,11 @@
       "name": "etaf-md-preview-tests-media-keeps-source-aspect-under-height-cap",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "A media card capped by height narrows its grid instead of squashing the source."
+    },
+    {
+      "name": "etaf-md-preview-tests-video-card-plays-with-a-native-decoder",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A local video renders as a poster card naming the inline play action when ffmpeg can decode it."
     },
     {
       "name": "etaf-md-preview-tests-local-media-opens-with-the-desktop",

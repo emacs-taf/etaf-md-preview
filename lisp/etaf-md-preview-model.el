@@ -112,7 +112,29 @@ plist may toggle individual extensions."
           :theme-source (if auto 'frame 'palette)
           :width (etaf-ref 92 :name 'etaf-md-preview-width)
           :error (etaf-ref nil :name 'etaf-md-preview-error-text)
-          :buffer nil)))
+          :buffer nil
+          ;; Cards whose video plays inline; written by activation and read
+          ;; while rendering so a press repaints exactly the video cards.
+          :video-active (etaf-ref nil :name 'etaf-md-preview-video-active)
+          ;; One stable native-playback handle per card key so a repaint
+          ;; re-registers the same handle instead of invalidating the card's
+          ;; activation closure.
+          :video-handles (make-hash-table :test #'equal))))
+
+(defun etaf-md-preview--video-card (session url occurrence)
+  "Return (KEY . HANDLE) for URL's OCCURRENCE in SESSION.
+A document can show the same source on several cards; the occurrence number
+counts the cards in render order so each owns its own player.  KEY names the
+card in SESSION's active-video set and HANDLE registers its player while the
+card is playing inline."
+  (let* ((table (plist-get session :video-handles))
+         (key (list url occurrence))
+         (handle (or (and (hash-table-p table) (gethash key table))
+                     (let ((new (make-symbol "etaf-md-preview-video")))
+                       (when (hash-table-p table)
+                         (puthash key new table))
+                       new))))
+    (cons key handle)))
 
 (defun etaf-md-preview-state (session)
   "Return SESSION's state as a detached plist snapshot.
@@ -358,6 +380,19 @@ before this option existed) uses the face-derived palette."
         :features (plist-get session :features)
         :open-url (lambda (url) (etaf-md-preview--open-url session url))
         :open-file #'etaf-md-preview--open-file
+        :video-card
+        (let ((occurrences (make-hash-table :test #'equal)))
+          (lambda (url)
+            (etaf-md-preview--video-card
+             session url (cl-incf (gethash url occurrences 0)))))
+        :video-active-p
+        (lambda (key)
+          (member key (etaf-md-preview--read session :video-active)))
+        :activate-video
+        (lambda (key)
+          (etaf-set-value
+           (etaf-md-preview--ref session :video-active)
+           (cons key (etaf-md-preview--read session :video-active))))
         :jump (lambda (label) (etaf-md-preview--jump-footnote session label))))
 
 (provide 'etaf-md-preview-model)

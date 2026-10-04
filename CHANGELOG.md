@@ -8,6 +8,10 @@ All notable user-visible changes to ETAF Markdown Preview. This project follows
 
 ### Changed
 
+- Local videos play inside the preview through ETAF's native video Component:
+  the card shows a still poster until RET (or a click) mounts the player in
+  place; further presses toggle play/pause. Without ffmpeg the card keeps the
+  poster and opens in the system player as before.
 - Media cards reuse the measured pixel size of an unchanged file instead of
   re-probing it on every preview. The probe records path, size and
   modification time, so an updated image or video is still measured from its
