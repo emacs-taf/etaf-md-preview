@@ -137,6 +137,10 @@ outline).
   in a graphical frame.
 - **A video opens in the system player instead of playing inline.** ffmpeg is
   not available on `exec-path`, so the card keeps its poster fallback.
+- **RET on a finished video restarts it from the beginning.** A completed
+  video has no paused state left to resume, so the next press replays it. The
+  last frame stays on the canvas until then, and a short clip may have ended
+  before the next press.
 - **Theme changes do not repaint shared components.** The preview publishes
   its palette for its own subtree only; a surrounding application keeps its
   own theme context.
