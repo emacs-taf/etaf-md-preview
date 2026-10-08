@@ -253,9 +253,7 @@ themselves."
                               (etaf-md-preview--heading-positions session))))))
     (pop-to-buffer buffer)
     (etaf-md-preview--fit-width session)
-    (etaf-mount buffer (etaf-md-preview-view session)
-                (list :viewport-width (window-body-width nil t)
-                      :viewport-height (window-body-height)))
+    (etaf-mount buffer (etaf-md-preview-view session))
     (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
     buffer))
 
