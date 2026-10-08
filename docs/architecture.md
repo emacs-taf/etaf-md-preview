@@ -18,7 +18,7 @@ previewer never calls an `ebox-` function directly.
 ## Data flow
 
 ```
-file or text → parser → document plist → session refs → views → ETAF mount → Ebox publication
+file or text → parser → document plist → session refs → views → ETAF mount → Ebox retained tree
                                          ↑
                           theme / width / errors (reactive refs)
 ```
@@ -59,11 +59,8 @@ viewport update: the view is not rebuilt and the session does not change.
 
 **Inline runs are separate `text` Hosts.** Inline style is expressed as one
 `text` Host per run inside a normal `box` with `word` wrapping; Ebox composes
-the children into one wrapped flow. Ebox's optional native layout module
-represents a single fused child per Box, so it must not accept an inline Box
-with several children: `ebox-native-reflow--compile-box` now declines that
-form and the Elisp renderer produces the output. This keeps one authoritative
-inline-composition algorithm and avoids duplicating it in the accelerator.
+the children into one wrapped flow, so the application keeps no inline layout
+algorithm of its own.
 
 **Media through the ETAF image Host.** Images and video posters are prepared
 by Ebox's image protocol (`ebox-image-prepare`/`ebox-image-create`) behind the
@@ -86,33 +83,16 @@ accepted budgets with the workspace performance driver:
 - `md-preview.mount.manual` parses and mounts the maintained manual from a
   fresh session into a fresh buffer: 100 ms.
 - `md-preview.refit.width` cycles the reading measure through several widths
-  on a mounted manual through the retained native frame: 10 ms.
+  on a mounted manual: 10 ms.
 
-Both scenarios run in batch and GUI modes. The recorded baseline on the shared
-development machine (Emacs 31.1, aarch64, load average around 3-5) is:
+Both scenarios run in batch and GUI modes. Three batch sets of 10 samples on
+the shared development machine (Emacs 31.1, aarch64) measure mount p50 41.7 ms
+(p95 57.1 ms) and refit p50 5.6 ms (p95 7.3 ms).
 
-| Mode | Mount p50 | Refit p50 | Mount allocation |
-| --- | --- | --- | --- |
-| batch | ~346 ms (15 samples) | ~21 ms (15 samples) | ~2.2M cons |
-| GUI | ~500 ms (5 samples) | ~34 ms (5 samples) | ~6.7M cons |
-
-A mount sample that lands on a collection carries 65-160 ms of garbage
-collection, so allocation is on the latency path, not beside it. Graphical
-frames also register one display template per image cell, which is why the
-GUI mount allocates about three times as much as the batch mount. Advised
-phase times for one batch mount: layout compilation ~48 ms, the native
-session frame ~40 ms, tape materialization ~21 ms, source-cluster
-compilation ~15 ms, fragment-owner projection ~12 ms, property-template
-registration ~11 ms and layout-control JSON ~2 ms. Retention-index building
-and fragment-owner projection are linear already.
-
-The remaining gap is structural: every mount compiles a fresh layout package
-and creates a fresh native session, while the refit path reuses both. Meeting
-the mount budget therefore requires reusing a compiled package and its native
-session across mounts of an unchanged document, not tuning individual render
-steps. On the refit path the residual cost is transaction-scoped by design:
-each candidate forks and releases a native session, and rollback retains a
-full-range surface snapshot.
+A mount builds the retained Ebox tree once and writes the buffer once. A refit
+keeps that tree: Ebox relays out only the width-dependent paragraphs and
+rewrites the lines whose text changed, so its cost follows the wrapped text,
+not the number of Hosts.
 
 ## Verification
 

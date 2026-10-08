@@ -4,9 +4,9 @@
 
 ;;; Commentary:
 ;;
-;; Register the preview's window-resize path with the shared performance
-;; driver.  The fixture mounts the maintained user manual and refits it across
-;; widths; every operation uses the package's public API.  Run it with:
+;; Register the preview's window-resize and mount paths with the shared
+;; performance driver.  The fixtures mount the maintained user manual and
+;; refit it across widths; every operation uses public APIs.  Run it with:
 ;;
 ;;   python3 scripts/performance.py run --mode batch \
 ;;     --scenario-file etaf-apps/etaf-md-preview/benchmarks/performance-scenarios.el \
@@ -28,44 +28,31 @@
   (vector 700 1100 800 1000 750 950)
   "Widths the resize scenario cycles through, in pixels.")
 
-(defun etaf-md-preview-benchmark--environment ()
-  "Report the renderer capabilities this fixture exercises."
-  (let ((native (ebox-native-reflow-runtime-report)))
-    (list :native_available (if (plist-get native :available-p) t :false)
-          :native_layout (if (plist-get native :layout-ready-p) t :false)
-          :native_hash (plist-get native :loaded-module-hash)
-          :native_path (plist-get native :loaded-module-path))))
-
 (taf-benchmark-register
  "md-preview.refit.width" :version 1 :modes '(batch gui) :budget-ms 10
  :impact 'local :isolation 'series
- :description "User manual width refit through the retained native frame"
+ :description "User manual width refit through the retained Ebox tree"
  :setup
  (lambda (_mode)
    (let* ((session (etaf-md-preview-create :file etaf-md-preview-benchmark--file))
+          (sink nil)
+          (refits 0)
           (buffer (etaf-mount "*TAF md-preview refit*"
                               (etaf-md-preview-view session)
-                              '(:viewport-width 900 :viewport-height 50)))
-          (runtime (etaf-runtime-for-buffer buffer))
-          (sink nil)
-          (report nil))
-     (with-current-buffer buffer
-       (ebox-buffer-set-observer
-        buffer
-        (lambda (observed-buffer observed-report)
-          (when (eq (plist-get observed-report :provider) 'ebox)
-            (setq report observed-report)
-            (when sink (funcall sink observed-buffer observed-report))))))
+                              (list :viewport-width 900 :viewport-height 50
+                                    :observer (lambda (report)
+                                                (when sink (funcall sink report))))))
+          (runtime (etaf-runtime-for-buffer buffer)))
      (list
       :buffer buffer
-      :environment #'etaf-md-preview-benchmark--environment
       :invoke
       (lambda (sample)
-        (etaf-runtime-refit
-         runtime
-         (aref etaf-md-preview-benchmark--widths
-               (% sample (length etaf-md-preview-benchmark--widths)))
-         50))
+        (when (etaf-runtime-refit
+               runtime
+               (aref etaf-md-preview-benchmark--widths
+                     (% sample (length etaf-md-preview-benchmark--widths)))
+               50)
+          (cl-incf refits)))
       :verify
       (lambda ()
         (with-current-buffer buffer
@@ -74,9 +61,7 @@
             "The preview runtime is not mounted")
            ((not (string-match-p "ETAF Markdown Preview 用户手册" (buffer-string)))
             "The manual's title is missing after a refit")
-           ((and (ebox-native-reflow-layout-ready-p)
-                 (not (eq (plist-get report :projection-kind) 'native-frame)))
-            (format "The refit fell back to %S" (plist-get report :projection-kind)))
+           ((zerop refits) "No refit changed the layout")
            (t t))))
       :observe
       (lambda (observer)
@@ -93,10 +78,9 @@
  :setup
  (lambda (mode)
    (let ((buffer (generate-new-buffer " *TAF md-preview mount*"))
-         sink report)
+         sink)
      (list
       :buffer buffer
-      :environment #'etaf-md-preview-benchmark--environment
       :invoke
       (lambda (_sample)
         (let ((session (etaf-md-preview-create :file etaf-md-preview-benchmark--file)))
@@ -106,8 +90,6 @@
             (when (eq mode 'batch) '(:viewport-width 900 :viewport-height 50))
             (list :observer
                   (lambda (observed-report)
-                    (when (eq (plist-get observed-report :provider) 'ebox)
-                      (setq report observed-report))
                     (when sink (funcall sink buffer observed-report))))))))
       :verify
       (lambda ()
@@ -117,9 +99,6 @@
            ((not (string-match-p "ETAF Markdown Preview 用户手册"
                                 (buffer-substring-no-properties (point-min) (point-max))))
             "The mounted manual has no title")
-           ((and (ebox-native-reflow-layout-ready-p)
-                 (not (eq (plist-get report :projection-kind) 'native-frame)))
-            (format "Mount fell back to %S" (plist-get report :projection-kind)))
            (t t))))
       :observe (lambda (observer)
                  (setq sink observer)
