@@ -34,7 +34,7 @@ scrolling, isearch and window splitting keep working.
   (`etaf-md-preview-theme' = `auto') that follows the active Emacs theme and
   paints no page background; all colors are published as `:ui-*` theme tokens
   so shared ETAF UI components follow the preview.
-- Outline navigation (`n`/`p`, `TAB`), imenu integration, reloading (`r`), an
+- Outline navigation (`n`/`p`, `C-c j`), imenu integration, reloading (`r`), an
   adjustable maximum reading measure (`[`/`]`) and native scrolling. A window
   resize reflows through the framework's viewport update without rebuilding
   the view.
@@ -76,7 +76,7 @@ M-x etaf-md-preview-open RET README.md RET
 | Key | Action |
 | --- | --- |
 | `n` / `p` | next / previous heading |
-| `TAB` | choose a heading |
+| `C-c j` | choose a heading |
 | `RET` or mouse-1 | activate the link or image under point; play or pause a video |
 | `r` | re-read and repaint the document |
 | `t` | cycle dark / light / sepia |

@@ -37,7 +37,7 @@
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "n") #'etaf-md-preview-next-heading)
     (define-key map (kbd "p") #'etaf-md-preview-previous-heading)
-    (define-key map (kbd "TAB") #'etaf-md-preview-goto-heading)
+    (define-key map (kbd "C-c j") #'etaf-md-preview-goto-heading)
     (define-key map (kbd "r") #'etaf-md-preview-reload)
     (define-key map (kbd "t") #'etaf-md-preview--cycle-theme-command)
     (define-key map (kbd "[") #'etaf-md-preview-narrower)

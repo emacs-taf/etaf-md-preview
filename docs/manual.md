@@ -9,7 +9,7 @@ of repeating signatures.
 | Key | Action |
 | --- | --- |
 | `n` / `p` | Move to the next / previous heading of the document |
-| `TAB` | Choose a heading from a completion list |
+| `C-c j` | Choose a heading from a completion list |
 | `RET`, mouse-1 | Activate the link or image under point; play or pause a video |
 | `r` | Re-read the file and repaint |
 | `t` | Cycle the palette (dark, light, sepia) |
