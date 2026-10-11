@@ -134,7 +134,7 @@ without a page background resets the remap so the Emacs theme shows through."
   "Show the previewer's key bindings."
   (interactive)
   (message
-   (concat "n/p 上/下个标题 · TAB 选择标题 · r 重新加载 · t 切换主题"
+   (concat "n/p 上/下个标题 · C-c j 选择标题 · r 重新加载 · t 切换主题"
            " · [ ] 调整栏宽 · q 关闭 · 链接/图片按 RET 打开 · 视频按 RET 播放/暂停")))
 
 (defun etaf-md-preview-close ()
