@@ -42,7 +42,7 @@
     (define-key map (kbd "t") #'etaf-md-preview--cycle-theme-command)
     (define-key map (kbd "[") #'etaf-md-preview-narrower)
     (define-key map (kbd "]") #'etaf-md-preview-wider)
-    (define-key map (kbd "?") #'etaf-md-preview-help)
+    (define-key map (kbd "C-c h") #'etaf-md-preview-help)
     (define-key map (kbd "q") #'etaf-md-preview-close)
     map)
   "Keymap of a buffer opened by `etaf-md-preview-open'.

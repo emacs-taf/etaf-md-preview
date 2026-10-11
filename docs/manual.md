@@ -14,7 +14,7 @@ of repeating signatures.
 | `r` | Re-read the file and repaint |
 | `t` | Cycle the palette (dark, light, sepia) |
 | `[` / `]` | Narrow / widen the maximum reading measure by four columns |
-| `?` | Show a one-line key summary |
+| `C-c h` | Show a one-line key summary |
 | `q` | Unmount the preview and kill its buffer |
 | `C-s`, `C-v`, `M-v`, wheel | Native isearch and scrolling |
 
