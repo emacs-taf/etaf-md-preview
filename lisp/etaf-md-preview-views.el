@@ -18,6 +18,7 @@
 
 (require 'cl-lib)
 (require 'subr-x)
+(require 'image)
 (require 'etaf)
 (require 'etaf-ui)
 (require 'etaf-md-preview-theme)

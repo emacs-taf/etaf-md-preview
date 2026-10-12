@@ -1,7 +1,8 @@
 .DEFAULT_GOAL := check
 .NOTPARALLEL:
 EMACS ?= emacs
-LOAD_PATH = -L . -L lisp -L tests -L ../../etaf -L ../../etaf-ui -L ../../ebox -L ../../ecss
+PROVIDER_ROOT := $(if $(wildcard ../etaf/etaf.el),..,../..)
+LOAD_PATH = -L . -L lisp -L tests -L $(PROVIDER_ROOT)/etaf -L $(PROVIDER_ROOT)/etaf-ui -L $(PROVIDER_ROOT)/ebox -L $(PROVIDER_ROOT)/ecss
 SOURCES = lisp/etaf-md-preview-theme.el
 SOURCES += lisp/etaf-md-preview-model.el lisp/etaf-md-preview-views.el
 SOURCES += lisp/etaf-md-preview-app.el etaf-md-preview.el
