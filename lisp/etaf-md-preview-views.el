@@ -4,15 +4,15 @@
 
 ;;; Commentary:
 ;;
-;; Presentation layer of etaf-md-preview.  The functions here take a parsed
-;; document plus a rendering environment and return ETAF views; they never
-;; read session state directly, so one code path renders headless tests and a
-;; mounted buffer alike.
+;; Presentation layer of etaf-md-preview.  The document body comes from the
+;; shared `etaf-ui-markdown' renderer; this module keeps what is specific to
+;; the previewer: the face-derived or named palette, the front-matter header,
+;; the reading column, and the media layer that turns images, videos and HTML
+;; media elements into poster cards backed by ETAF's image and video Hosts.
 ;;
-;; The environment is a plist with `:theme', `:width' (the reading column in
-;; character cells), `:dir' (base directory for relative media), `:open-url'
-;; and `:open-file' callbacks.  Views are built with `etaf-node', ETAF's
-;; ordinary-Elisp construction entry, because the markdown tree is data.
+;; The functions take a parsed document plus a rendering environment and
+;; return ETAF views; they never read session state directly, so one code path
+;; renders headless tests and a mounted buffer alike.
 
 ;;; Code:
 
@@ -22,17 +22,14 @@
 (require 'etaf-ui)
 (require 'etaf-md-preview-theme)
 
+(defconst etaf-md-preview--alert-labels
+  '((note . "笔记") (tip . "提示") (important . "重要")
+    (warning . "警告") (caution . "小心"))
+  "Chinese labels of the GitHub alert kinds, for ENV's `:alert-labels'.")
+
 (defconst etaf-md-preview--video-extensions
   '("mp4" "mov" "m4v" "webm" "avi" "mkv" "ogv" "mpg" "mpeg" "wmv" "flv" "3gp")
   "File extensions rendered as a video card.")
-
-(defconst etaf-md-preview--admonitions
-  '("note" "tip" "important" "warning" "caution")
-  "GitHub-style alert names recognized in blockquotes.")
-
-;;; ---------------------------------------------------------------------------
-;;; Environment helpers
-;;; ---------------------------------------------------------------------------
 
 (defun etaf-md-preview--env-color (env key)
   "Return ENV's color for semantic KEY.
@@ -43,23 +40,6 @@ unknown key in either source signals `etaf-md-preview-error'."
           (signal 'etaf-md-preview-error
                   (list (format "Unknown markdown preview color: %S" key))))
     (etaf-md-preview-color key (plist-get env :theme))))
-
-(defun etaf-md-preview--heading-pixels (level)
-  "Return the heading font size for LEVEL."
-  (let ((base (etaf-md-preview--base-pixels)))
-    (round (pcase level
-             (1 (* base 1.55))
-             (2 (* base 1.32))
-             (3 (* base 1.14))
-             (_ base)))))
-
-(defun etaf-md-preview--divider (&optional label)
-  "Return a horizontal divider View, optionally labeled."
-  (etaf-node 'etaf-divider (list :orientation 'horizontal :label label) nil))
-
-(defun etaf-md-preview--spacer (&optional lines)
-  "Return an empty spacer Box LINES lines tall."
-  (etaf-node 'box (list :height (list 'lh (or lines 1))) nil))
 
 (defconst etaf-md-preview--meta-labels
   '(("author" . "作者") ("date" . "日期") ("version" . "版本")
@@ -121,136 +101,13 @@ document with front matter opens on a page-like header instead of raw text."
 ;;; Inline rendering
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--run-props (run env)
-  "Return the ETAF style props of inline RUN in ENV."
-  (let ((props nil))
-    (when (plist-get run :bold)
-      (setq props (plist-put props :font-weight 'bold)))
-    (when (plist-get run :italic)
-      (setq props (plist-put props :font-style 'italic)))
-    (when (plist-get run :strike)
-      (setq props (plist-put props :text-decoration-line '(line-through))))
-    (when (plist-get run :code)
-      (setq props (plist-put props :background-color
-                             (etaf-md-preview--env-color env :panel)))
-      (let ((mono (etaf-md-preview--mono-family)))
-        (when mono (setq props (plist-put props :font-family mono)))))
-    (when (plist-get run :link)
-      (setq props (plist-put props :color (etaf-md-preview--env-color env :accent)))
-      (setq props (plist-put props :text-decoration-line '(underline))))
-    (when (plist-get run :muted)
-      (setq props (plist-put props :color (etaf-md-preview--env-color env :muted))))
-    props))
+(defun etaf-md-preview--spacer (&optional lines)
+  "Return an empty spacer Box LINES lines tall."
+  (etaf-node 'box (list :height (list 'lh (or lines 1))) nil))
 
-(defun etaf-md-preview--flatten-inlines (nodes inherited env)
-  "Return styled run entries for inline NODES in ENV.
-INHERITED is the style attribute plist of the enclosing inline element.
-Entries are (:text STRING :props PLIST) or (:view VIEW)."
-  (let (result)
-    (dolist (node nodes)
-      (pcase (plist-get node :type)
-        ('text
-         (push (list :text (or (plist-get node :text) "") :props inherited) result))
-        ('break
-         (push (list :text (if (plist-get node :hard) "\n" " ") :props inherited)
-               result))
-        ('code
-         (push (list :text (or (plist-get node :text) "")
-                     :props (plist-put (copy-sequence inherited) :code t))
-               result))
-        ((or 'emph 'strong 'strike)
-         (let ((child (copy-sequence inherited)))
-           (when (eq (plist-get node :type) 'emph)
-             (setq child (plist-put child :italic t)))
-           (when (eq (plist-get node :type) 'strong)
-             (setq child (plist-put child :bold t)))
-           (when (eq (plist-get node :type) 'strike)
-             (setq child (plist-put child :strike t)))
-           (setq result
-                 (append (nreverse
-                          (etaf-md-preview--flatten-inlines
-                           (plist-get node :children) child env))
-                         result))))
-        ((or 'link 'autolink)
-         (let ((child (plist-put (copy-sequence inherited) :link (plist-get node :url))))
-           (setq result
-                 (append (nreverse
-                          (etaf-md-preview--flatten-inlines
-                           (plist-get node :children) child env))
-                         result))))
-        ('footnote-ref
-         (push (list :view (etaf-md-preview--footnote-view node env)) result))
-        ('image
-         (push (list :view (etaf-md-preview--inline-image-view node env)) result))
-        ('html
-         (push (list :text (or (plist-get node :text) "")
-                     :props (plist-put (copy-sequence inherited) :muted t))
-               result))
-        (_ nil)))
-    (nreverse result)))
-
-(defun etaf-md-preview--inline-runs (inlines env base)
-  "Flatten INLINES into styled runs for ENV.
-BASE is the plist of style attributes inherited from the enclosing block.
-Adjacent text runs with equal styles are merged into one entry."
-  (let ((runs nil))
-    (dolist (run (etaf-md-preview--flatten-inlines inlines base env))
-      (let* ((previous (car runs))
-             (text (plist-get run :text))
-             (props (plist-get run :props))
-             (merge (and previous
-                         (not (plist-get previous :view))
-                         (not (plist-get run :view))
-                         (plist-get previous :text)
-                         (equal (plist-get previous :props) props)
-                         (not (string-suffix-p "\n" (plist-get previous :text)))
-                         (not (string-prefix-p "\n" text)))))
-        (if merge
-            (setcar runs (plist-put previous :text
-                                    (concat (plist-get previous :text) text)))
-          (push run runs))))
-    (nreverse runs)))
-
-(defun etaf-md-preview--runs-view (inlines env base &optional extra)
-  "Return ETAF children for INLINES in ENV.
-BASE is a run-attribute plist (`:bold', `:italic', `:strike', `:code',
-`:link', `:muted'); EXTRA is an Ebox style plist applied to every text run."
-  (let ((nodes nil))
-    (dolist (run (etaf-md-preview--inline-runs inlines env base))
-      (if-let* ((view (plist-get run :view)))
-          (push view nodes)
-        (let* ((attributes (plist-get run :props))
-               (text (plist-get run :text))
-               (props (let ((merged (copy-sequence extra))
-                            (inline (etaf-md-preview--run-props attributes env)))
-                        ;; Heading typography supplies defaults; an inline
-                        ;; link or code span overrides only its own properties.
-                        (while inline
-                          (setq merged (plist-put merged (pop inline) (pop inline))))
-                        merged))
-               (url (plist-get attributes :link))
-               (props (if url
-                          (append props
-                                  (list :role 'link :tab-index 0 :help-echo url
-                                        :on-press (lambda ()
-                                                    (funcall (plist-get env :open-url)
-                                                             url))))
-                        props)))
-          (push (etaf-node 'text props (list text)) nodes))))
-    (nreverse nodes)))
-
-(defun etaf-md-preview--footnote-view (node env)
-  "Return the superscript reference View of footnote NODE in ENV."
-  (let ((number (or (plist-get node :number)
-                    (plist-get node :label)))
-        (label (plist-get node :label)))
-    (etaf-node 'text
-               (list :color (etaf-md-preview--env-color env :accent)
-                     :font-size (round (* (etaf-md-preview--base-pixels) 0.8))
-                     :role 'link :tab-index 0
-                     :help-echo (format "脚注 %s" label)
-                     :on-press (lambda () (funcall (plist-get env :jump) label)))
-               (list (format "[%s]" number)))))
+(defun etaf-md-preview--divider (&optional label)
+  "Return a horizontal divider View, optionally labeled."
+  (etaf-node 'etaf-divider (list :orientation 'horizontal :label label) nil))
 
 (defun etaf-md-preview--inline-image-view (node env)
   "Return the inline chip View of image NODE in ENV."
@@ -560,313 +417,18 @@ as a bordered placeholder that opens in the browser."
 ;;; Block rendering
 ;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--paragraph-node (block env)
-  "Return the paragraph View of BLOCK in ENV."
-  (if (and (= 1 (length (plist-get block :children)))
-           (eq (plist-get (car (plist-get block :children)) :type) 'image))
-      (let ((image (car (plist-get block :children))))
-        (etaf-md-preview--media-card (plist-get image :url) (plist-get image :alt) env))
-    (etaf-node 'box
-               (list :width 'stretch :wrap-mode 'word)
-               (etaf-md-preview--runs-view (plist-get block :children) env nil))))
+;;; ---------------------------------------------------------------------------
+;;; Media rendering
+;;; ---------------------------------------------------------------------------
 
-(defun etaf-md-preview--heading-node (block env)
-  "Return the heading View of BLOCK in ENV."
-  (let* ((level (plist-get block :level))
-         (color (if (>= level 5)
-                    (etaf-md-preview--env-color env :muted)
-                  (etaf-md-preview--env-color env :heading)))
-         (children
-          (etaf-md-preview--runs-view
-           (plist-get block :children) env (list :bold t)
-           (list :font-size (etaf-md-preview--heading-pixels level)
-                 :color color))))
-    (etaf-node 'box
-               (list :id (plist-get block :id)
-                     :width 'stretch
-                     ;; Headings carry no margin or rule of their own: the block
-                     ;; flow separates every sibling with exactly one blank
-                     ;; line, including heading-to-heading.
-                     :margin '((lh 0) (ch 0)))
-               children)))
-
-(defun etaf-md-preview--code-block-node (block env)
-  "Return the code block View of BLOCK in ENV."
-  (let* ((mono (etaf-md-preview--mono-family))
-         (lang (plist-get block :lang))
-         (body (etaf-node 'box
-                          (list :width 'stretch :wrap-mode 'char
-                                :font-family mono
-                                :color (etaf-md-preview--env-color env :ink))
-                          (list (etaf-node 'text nil
-                                           (list (plist-get block :text))))))
-         (header (when lang
-                   (etaf-node 'flex
-                              (list :width 'stretch :justify-content 'flex-end)
-                              (list (etaf-node 'etaf-tag
-                                               (list :text lang :variant 'neutral)
-                                               nil))))))
-    (etaf-node 'box
-               (list :width 'stretch
-                     :background-color (etaf-md-preview--env-color env :panel)
-                     :border (list '(px 1) 'solid (etaf-md-preview--env-color env :border))
-                     :padding-top (if header '(lh 0) '(lh 1))
-                     :padding-bottom '(lh 1)
-                     :padding-left '(ch 2)
-                     :padding-right '(ch 2))
-               (append (when header (list header)) (list body)))))
-
-(defun etaf-md-preview--blockquote-node (block env)
-  "Return the blockquote View of BLOCK in ENV.
-A GitHub alert (`> [!NOTE]' and friends) becomes a tinted callout; any other
-quote keeps the muted surface and the accent bar."
-  (let* ((children (plist-get block :children))
-         (alert (and (plist-get (plist-get env :features) :alerts)
-                     (etaf-md-preview--alert-kind children))))
-    (if alert
-        (let* ((spec (etaf-md-preview--alert-spec alert))
-               (color (etaf-md-preview--env-color env (nth 1 spec)))
-               (soft (etaf-md-preview--env-color env (nth 2 spec))))
-          (etaf-node 'box
-                     (list :width 'stretch
-                           :background-color soft
-                           :border-left (list '(px 3) 'solid color)
-                           :padding-top '(lh 0)
-                           :padding-bottom '(lh 0)
-                           :padding-left '(ch 2)
-                           :padding-right '(ch 2))
-                     (append
-                      (list (etaf-node 'text
-                                       (list :color color :font-weight 'bold)
-                                       (list (format "%s %s" (nth 3 spec) (nth 0 spec)))))
-                      (etaf-md-preview--view-blocks
-                       (etaf-md-preview--alert-blocks children) env t))))
-      (etaf-node 'box
-                 (list :width 'stretch
-                       :background-color (etaf-md-preview--env-color env :quote-bg)
-                       :border-left (list '(px 3) 'solid
-                                          (etaf-md-preview--env-color env :quote-bar))
-                       :padding-top '(lh 0)
-                       :padding-bottom '(lh 1)
-                       :padding-left '(ch 2)
-                       :padding-right '(ch 2))
-                 (etaf-md-preview--view-blocks children env t)))))
-
-(defun etaf-md-preview--alert-kind (blocks)
-  "Return the GitHub alert kind when BLOCKS open with an alert marker."
-  (let* ((first (car blocks))
-         (children (and first (eq (plist-get first :type) 'paragraph)
-                        (plist-get first :children)))
-         (text (and children (eq (plist-get (car children) :type) 'text)
-                    (plist-get (car children) :text))))
-    (when (and text (string-match "\\`\\[!\\([A-Za-z]+\\)\\][ \t]*\\(?:\n\\|\\'\\)" text))
-      (let ((kind (downcase (match-string 1 text))))
-        (and (etaf-md-preview--alert-spec kind) kind)))))
-(defun etaf-md-preview--alert-spec (kind)
-  "Return (LABEL COLOR-KEY SOFT-KEY ICON) for alert KIND, or nil."
-  (pcase (downcase kind)
-    ("note" '("笔记" :accent :accent-soft "ℹ"))
-    ("tip" '("提示" :ok :ok-soft "✔"))
-    ("important" '("重要" :important :important-soft "★"))
-    ("warning" '("警告" :warn :warn-soft "⚠"))
-    ("caution" '("小心" :danger :danger-soft "⛔"))
-    (_ nil)))
-
-(defun etaf-md-preview--alert-blocks (blocks)
-  "Return BLOCKS with the leading alert marker removed.
-The document tree is shared across renders, so the first paragraph is rebuilt
-instead of mutated."
-  (let* ((first (car blocks))
-         (children (plist-get first :children))
-         (text (plist-get (car children) :text))
-         (rest (replace-regexp-in-string
-                "\\`\\[![A-Za-z]+\\][ \t]*\\n?" "" text)))
-    (cons (let ((paragraph (copy-sequence first)))
-            (plist-put paragraph :children
-                       (if (string-empty-p rest)
-                           (cdr children)
-                         (cons (plist-put (copy-sequence (car children)) :text rest)
-                               (cdr children)))))
-          (cdr blocks))))
-
-(defun etaf-md-preview--table-node (block env)
-  "Return the table View of BLOCK in ENV.
-The table draws its own grid: an outer border, a row separator, a column
-separator, a tinted header row and zebra striping, so every column and
-alignment stays visible at a glance."
-  (let* ((aligns (plist-get block :aligns))
-         (columns (length aligns))
-         (rows (append (list (plist-get block :header))
-                       (plist-get block :rows)))
-         (last-row (1- (length rows)))
-         (border (list '(px 1) 'solid (etaf-md-preview--env-color env :border)))
-         (grids nil))
-    (cl-loop for row in rows
-             for row-index from 0
-             do (let ((cells nil))
-                  (cl-loop for inlines in row
-                           for align in aligns
-                           for column-index from 0
-                           do (push
-                               (etaf-node 'box
-                                          (list :padding '((lh 0) (ch 1))
-                                                :width 'stretch
-                                                :overflow 'hidden
-                                                :wrap-mode 'char
-                                                :text-align (or align 'left)
-                                                :border-bottom (and (/= row-index last-row)
-                                                                    border)
-                                                :border-right (and (/= column-index
-                                                                       (1- columns))
-                                                                   border)
-                                                :background-color
-                                                (cond
-                                                 ((zerop row-index)
-                                                  (etaf-md-preview--env-color env :table-header))
-                                                 ((zerop (% row-index 2))
-                                                  (etaf-md-preview--env-color env :table-stripe))
-                                                 (t nil)))
-                                          (etaf-md-preview--runs-view
-                                           inlines env
-                                           (when (zerop row-index) (list :bold t))))
-                               cells))
-                  ;; One grid per row keeps every row's columns aligned by the
-                  ;; same fractional tracks while staying within the layouts
-                  ;; the native renderer can accelerate.
-                  (push (etaf-node 'grid
-                                   (list :width 'stretch
-                                         :grid-template-columns (make-list columns '(fr 1)))
-                                   (nreverse cells))
-                        grids)))
-    (etaf-node 'box
-               (list :width 'stretch :border border)
-               (nreverse grids))))
-
-(defun etaf-md-preview--thematic-break-node ()
-  "Return the thematic break View."
-  (etaf-md-preview--divider))
-
-(defconst etaf-md-preview--html-media-regexp
-  "<\\(video\\|img\\)\\b[^>]*>"
-  "Opening tags whose source is rendered as a media card.")
-
-(defun etaf-md-preview--html-attribute (tag name)
-  "Return NAME's attribute value from TAG, or nil."
-  (when (string-match (format "%s[ \t]*=[ \t]*[\"']\\([^\"']*\\)[\"']" name) tag)
-    (match-string 1 tag)))
-
-(defun etaf-md-preview--html-block-node (block env)
-  "Return the View of raw HTML BLOCK in ENV.
-Media elements become real media cards; other tags stay visible as code, so
-the preview never silently drops content it cannot render."
-  (let ((text (plist-get block :text)))
-    (if (string-match etaf-md-preview--html-media-regexp text)
-        (let* ((tag (match-string 0 text))
-               (src (etaf-md-preview--html-attribute tag "src"))
-               (alt (or (etaf-md-preview--html-attribute tag "alt")
-                        (etaf-md-preview--html-attribute tag "title"))))
-          (if src
-              (etaf-md-preview--media-card src alt env)
-            (etaf-md-preview--html-code-node text env)))
-      (etaf-md-preview--html-code-node text env))))
-
-(defun etaf-md-preview--html-code-node (text env)
-  "Return a muted monospace block View for raw HTML TEXT in ENV."
-  (etaf-node 'box
-             (list :width 'stretch :wrap-mode 'char
-                   :background-color (etaf-md-preview--env-color env :panel)
-                   :padding-top '(lh 1)
-                   :padding-bottom '(lh 1)
-                   :padding-left '(ch 2)
-                   :padding-right '(ch 2))
-             (list (etaf-node 'text
-                              (list :color (etaf-md-preview--env-color env :muted))
-                              (list text)))))
-
-(defun etaf-md-preview--list-node (block env)
-  "Return the list View of BLOCK in ENV."
-  (let ((tight (plist-get block :tight))
-        (ordered (plist-get block :ordered))
-        (start (or (plist-get block :start) 1))
-        (index 0)
-        (items nil))
-    (dolist (item (plist-get block :items))
-      (cl-incf index)
-      (let* ((checked (plist-get item :checked))
-             (task (plist-get item :task))
-             (marker
-              (cond
-               (task (etaf-node 'text
-                                (list :color (if checked
-                                                 (etaf-md-preview--env-color env :accent)
-                                               (etaf-md-preview--env-color env :muted)))
-                                (list (if checked "☑" "☐"))))
-               (ordered (etaf-node 'text
-                                   (list :color (etaf-md-preview--env-color env :muted))
-                                   (list (format "%d." (+ start (1- index))))))
-               (t (etaf-node 'text
-                             (list :color (etaf-md-preview--env-color env :muted))
-                             (list "•")))))
-             (content (etaf-md-preview--view-blocks (plist-get item :children) env tight)))
-        (push (etaf-node 'flex
-                         (list :width 'stretch)
-                         (list
-                          (etaf-node 'box
-                                     (list :width '(ch 3) :flex-shrink 0)
-                                     (list marker))
-                          (etaf-node 'column
-                                     (list :width 'stretch :min-width '(ch 0))
-                                     content)))
-              items)))
-    (etaf-node 'column
-               (list :width 'stretch
-                     :item-gap (list 'lh (if tight 0 1)))
-               (nreverse items))))
-
-(defun etaf-md-preview--footnote-def-node (block env)
-  "Return the footnote definition View of BLOCK in ENV."
-  (etaf-node 'box
-             (list :width 'stretch :wrap-mode 'word
-                   :id (format "footnote-%s" (plist-get block :label)))
-             (append
-              (list (etaf-node 'text
-                               (list :color (etaf-md-preview--env-color env :accent)
-                                     :font-weight 'bold)
-                               (list (format "[%s] " (plist-get block :number)))))
-              (etaf-md-preview--runs-view
-               (cl-loop for child in (plist-get block :children)
-                        append (if (eq (plist-get child :type) 'paragraph)
-                                   (plist-get child :children)
-                                 nil))
-               env nil))))
-
-(defun etaf-md-preview--view-block (block env)
-  "Return the list of Views for one BLOCK in ENV."
-  (pcase (plist-get block :type)
-    ('heading (list (etaf-md-preview--heading-node block env)))
-    ('paragraph (list (etaf-md-preview--paragraph-node block env)))
-    ('code-block (list (etaf-md-preview--code-block-node block env)))
-    ('blockquote (list (etaf-md-preview--blockquote-node block env)))
-    ('list (list (etaf-md-preview--list-node block env)))
-    ('table (list (etaf-md-preview--table-node block env)))
-    ('thematic-break (list (etaf-md-preview--thematic-break-node)))
-    ('html-block (list (etaf-md-preview--html-block-node block env)))
-    ('footnote-def (list (etaf-md-preview--footnote-def-node block env)))
-    (_ nil)))
-
-(defun etaf-md-preview--view-blocks (blocks env &optional tight)
-  "Return Views for BLOCKS in ENV.
-TIGHT drops the blank line between consecutive blocks."
-  (let ((nodes nil)
-        (first t))
-    (dolist (block blocks)
-      (when-let* ((views (etaf-md-preview--view-block block env)))
-        (unless (or first tight)
-          (push (etaf-md-preview--spacer) nodes))
-        (setq first nil)
-        (dolist (view views)
-          (push view nodes))))
-    (nreverse nodes)))
+(defun etaf-md-preview--render-media (kind node env)
+  "Return the media View for NODE of KIND in ENV.
+Inline images render as a compact chip; block images, videos and HTML media
+elements render as the full poster card with caption and activation."
+  (pcase kind
+    ('inline-image (etaf-md-preview--inline-image-view node env))
+    (_ (etaf-md-preview--media-card (plist-get node :url)
+                                    (plist-get node :alt) env))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Document
@@ -874,24 +436,23 @@ TIGHT drops the blank line between consecutive blocks."
 
 (defun etaf-md-preview--view-document (document env)
   "Return the mounted reading View of DOCUMENT in ENV.
-The reading column uses cross-axis centering and is capped by ENV's
-`:width', so wide frames keep a readable measure and narrow frames fill.
-The cap only bounds the measure: the column itself is viewport-relative, so a
-window resize reflows through the renderer's own viewport update instead of
-rebuilding the document.  ENV's `:background', when set, paints the page;
-without it the buffer keeps the Emacs theme's own background."
+The document body renders through the shared `etaf-ui-markdown-view-blocks';
+the reading column uses cross-axis centering and is capped by ENV's `:width',
+so wide frames keep a readable measure and narrow frames fill.  ENV's
+`:background', when set, paints the page; without it the buffer keeps the
+Emacs theme's own background."
   (let* ((width (max 24 (or (plist-get env :width) 92)))
          (background (plist-get env :background))
          (hero (etaf-md-preview--meta-node document env))
          (body (append
                 (when hero (list hero (etaf-md-preview--spacer)))
-                (etaf-md-preview--view-blocks (plist-get document :children) env)
+                (etaf-ui-markdown-view-blocks (plist-get document :children) env)
                 (when-let* ((footnotes (plist-get document :footnotes)))
                   (append
                    (list (etaf-md-preview--spacer)
                          (etaf-md-preview--divider "脚注")
                          (etaf-md-preview--spacer))
-                   (etaf-md-preview--view-blocks footnotes env))))))
+                   (etaf-ui-markdown-view-blocks footnotes env))))))
     (etaf-node 'column
                (append (list :width '(vw 100) :cross-align 'center)
                        (when background

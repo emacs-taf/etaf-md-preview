@@ -183,13 +183,6 @@ Signal `etaf-md-preview-error' when either is unknown."
                 (list (format "Unknown markdown preview color: %S" key))))
       color)))
 
-(defun etaf-md-preview--mono-family ()
-  "Return the family of the frame's fixed-pitch font, or nil.
-A frame whose fixed-pitch face inherits the default family yields nil, and
-code spans then use the frame's own font instead of guessing a family."
-  (let ((family (face-attribute 'fixed-pitch :family nil t)))
-    (and (stringp family) (not (string-empty-p family)) family)))
-
 (defun etaf-md-preview--base-pixels ()
   "Return the frame's default font size in CSS reference pixels."
   (let ((height (face-attribute 'default :height nil t)))

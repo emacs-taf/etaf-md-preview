@@ -17,8 +17,9 @@
 (require 'cl-lib)
 (require 'subr-x)
 (require 'etaf)
-(require 'etaf-md-preview-parser)
+(require 'etaf-ui)
 (require 'etaf-md-preview-theme)
+(require 'etaf-md-preview-views)
 
 (define-error 'etaf-md-preview-error "Markdown preview error")
 
@@ -32,6 +33,16 @@
   "Widest reading measure, in character cells.
 A window wider than this measure keeps the measure and centers the column."
   :type 'integer
+  :group 'etaf-md-preview)
+
+(defcustom etaf-md-preview-flavor 'gfm
+  "Default Markdown dialect of `etaf-md-preview-create'.
+The session's `:flavor' argument overrides it.  `gfm' enables the GitHub
+extensions and front matter, `commonmark' parses the core specification only,
+and a feature plist toggles individual extensions."
+  :type '(choice (const :tag "GitHub Flavored Markdown" gfm)
+                 (const :tag "CommonMark only" commonmark)
+                 (sexp :tag "Feature plist"))
   :group 'etaf-md-preview)
 
 ;;; ---------------------------------------------------------------------------
@@ -71,6 +82,15 @@ re-renders on every write."
     (insert-file-contents file)
     (buffer-string)))
 
+(defun etaf-md-preview--parse (text flavor)
+  "Parse TEXT with FLAVOR, reporting failures as `etaf-md-preview-error'.
+Parsing is shared with the other document viewers; this package keeps its
+own error type at its boundary."
+  (condition-case err
+      (etaf-ui-markdown-parse text flavor)
+    (etaf-ui-markdown-error
+     (signal 'etaf-md-preview-error (cdr err)))))
+
 ;;; ---------------------------------------------------------------------------
 ;;; Session
 ;;; ---------------------------------------------------------------------------
@@ -98,7 +118,7 @@ plist may toggle individual extensions."
     (list :file file
           :text (unless file contents)
           :flavor flavor
-          :features (etaf-md-preview--features-for flavor)
+          :features (plist-get document :features)
           :dir (if file (file-name-directory file) default-directory)
           :document (etaf-ref document :name 'etaf-md-preview-document)
           :title (etaf-ref (or title
@@ -302,8 +322,7 @@ browser; local paths open in Emacs."
     (let ((anchor (substring url 1)))
       (cl-loop for entry in (etaf-md-preview-outline session)
                for index from 0
-               when (or (equal (nth 2 entry) anchor)
-                        (equal (etaf-md-preview--slug (nth 1 entry)) anchor))
+               when (equal (nth 2 entry) anchor)
                return (etaf-md-preview-locate session index)
                finally (message "No heading matches #%s" anchor))))
    ((etaf-md-preview--remote-url-p url)
@@ -366,8 +385,10 @@ background visible instead."
 Sessions created with the `auto' theme derive their surfaces from the active
 frame's faces, so panels, tables and code blocks match the user's own theme.
 A session that has not selected a palette explicitly (including one created
-before this option existed) uses the face-derived palette."
-  (unless (eq (plist-get session :theme-source) 'palette)
+before this option existed) uses the face-derived palette; a named palette
+returns its own color alist so the shared renderer never needs a theme name."
+  (if (eq (plist-get session :theme-source) 'palette)
+      (cdr (assq (etaf-md-preview--read session :theme) etaf-md-preview-themes))
     (etaf-md-preview--palette-from-faces)))
 
 (defun etaf-md-preview--env (session)
@@ -379,7 +400,10 @@ before this option existed) uses the face-derived palette."
         :dir (plist-get session :dir)
         :features (plist-get session :features)
         :open-url (lambda (url) (etaf-md-preview--open-url session url))
+        :open-link (lambda (url) (etaf-md-preview--open-url session url))
         :open-file #'etaf-md-preview--open-file
+        :render-media #'etaf-md-preview--render-media
+        :alert-labels etaf-md-preview--alert-labels
         :video-card
         (let ((occurrences (make-hash-table :test #'equal)))
           (lambda (url)
@@ -393,7 +417,7 @@ before this option existed) uses the face-derived palette."
           (etaf-set-value
            (etaf-md-preview--ref session :video-active)
            (cons key (etaf-md-preview--read session :video-active))))
-        :jump (lambda (label) (etaf-md-preview--jump-footnote session label))))
+        :footnote-jump (lambda (label) (etaf-md-preview--jump-footnote session label))))
 
 (provide 'etaf-md-preview-model)
 ;;; etaf-md-preview-model.el ends here

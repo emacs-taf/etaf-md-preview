@@ -2,7 +2,7 @@
 .NOTPARALLEL:
 EMACS ?= emacs
 LOAD_PATH = -L . -L lisp -L tests -L ../../etaf -L ../../etaf-ui -L ../../ebox -L ../../ecss
-SOURCES = lisp/etaf-md-preview-parser.el lisp/etaf-md-preview-theme.el
+SOURCES = lisp/etaf-md-preview-theme.el
 SOURCES += lisp/etaf-md-preview-model.el lisp/etaf-md-preview-views.el
 SOURCES += lisp/etaf-md-preview-app.el etaf-md-preview.el
 SOURCES += $(wildcard examples/*.el)

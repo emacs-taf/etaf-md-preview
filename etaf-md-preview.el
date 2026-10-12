@@ -162,7 +162,7 @@
   (when (file-directory-p lisp)
     (add-to-list 'load-path lisp)))
 
-(require 'etaf-md-preview-parser)
+(require 'etaf-ui)
 (require 'etaf-md-preview-theme)
 (require 'etaf-md-preview-model)
 (require 'etaf-md-preview-views)
