@@ -20,6 +20,7 @@
 (require 'subr-x)
 (require 'image)
 (declare-function image-size "image.c" (spec &optional pixels frame))
+(declare-function clear-image-cache "image.c" (&optional filter))
 (require 'etaf)
 (require 'etaf-ui)
 (require 'etaf-md-preview-theme)
