@@ -1,8 +1,8 @@
 # ETAF Markdown Preview
 
 ETAF Markdown Preview renders a local Markdown document as a modern reading
-view inside Emacs. It draws the document with [ETAF](https://forgejo.vhkd.top/emacs-taf/etaf)
-components and the [Ebox](https://forgejo.vhkd.top/emacs-taf/ebox) renderer: a
+view inside Emacs. It draws the document with [ETAF](https://github.com/emacs-taf/etaf)
+components and the [Ebox](https://github.com/emacs-taf/ebox) renderer: a
 centered reading measure, a typographic heading scale, fenced code blocks with
 language tags, blockquotes, nested lists, task markers, pipe tables, thematic
 breaks, numbered footnotes, clickable links, and local image and video cards.
