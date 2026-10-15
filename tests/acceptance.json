@@ -11,6 +11,11 @@
   "support": [],
   "cases": [
     {
+      "name": "etaf-md-preview-tests-help-stays-in-preview",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Both help entries show effective labelled bindings in the existing preview; search and layered Escape preserve the document state and window layout."
+    },
+    {
       "name": "etaf-md-preview-tests-alerts-end-with-their-body",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "All five callout kinds preserve explicit body line breaks and end without an extra padded row, retaining one normal inter-block blank line."

@@ -8,6 +8,10 @@ All notable user-visible changes to ETAF Markdown Preview. This project follows
 
 ### Changed
 
+- `?` and `C-c h` share searchable, themed help inside the preview, with
+  concise labels from the effective bindings. Escape exits one layer at a
+  time; clicking outside closes help and restores the reading focus.
+
 - Local videos play inside the preview through ETAF's native video Component:
   the card shows a still poster until RET (or a click) mounts the player in
   place; further presses toggle play/pause. Without ffmpeg the card keeps the

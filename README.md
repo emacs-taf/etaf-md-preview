@@ -81,8 +81,13 @@ M-x etaf-md-preview-open RET README.md RET
 | `r` | re-read and repaint the document |
 | `t` | cycle dark / light / sepia |
 | `[` / `]` | narrow / widen the reading measure |
+| `?` / `C-c h` | searchable help inside the preview |
 | `q` | close the preview |
 | `C-s`, `C-v`, wheel | native isearch and scrolling |
+
+Help follows the preview's theme without splitting its window. `/` searches
+the effective bindings; Escape leaves search editing before closing help.
+Clicking the dimmed background also closes it and restores the previous focus.
 
 ## Development
 

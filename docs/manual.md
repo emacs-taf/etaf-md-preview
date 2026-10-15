@@ -14,13 +14,15 @@ of repeating signatures.
 | `r` | Re-read the file and repaint |
 | `t` | Cycle the palette (dark, light, sepia) |
 | `[` / `]` | Narrow / widen the maximum reading measure by four columns |
-| `C-c h` | Show a one-line key summary |
+| `?`, `C-c h` | Search the current key bindings in an in-buffer help modal |
 | `q` | Unmount the preview and kill its buffer |
 | `C-s`, `C-v`, `M-v`, wheel | Native isearch and scrolling |
 
 The buffer is an ordinary Emacs buffer, so isearch, `occur`, window splitting,
 `C-x C-s`-style buffer handling and `imenu` all keep working. `M-x imenu`
-lists the document outline.
+lists the document outline. Help stays in the preview window and follows its
+theme. `/` searches; Escape first leaves search editing, then closes help.
+Clicking outside the panel also closes it and restores the reading focus.
 
 ## Supported Markdown
 

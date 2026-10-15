@@ -457,7 +457,9 @@ Emacs theme's own background."
                          (etaf-md-preview--spacer))
                    (etaf-ui-markdown-view-blocks footnotes env))))))
     (etaf-node 'column
-               (append (list :width '(vw 100) :cross-align 'center)
+               (append (list :width '(vw 100) :cross-align 'center
+                             :aria-label "Markdown 预览"
+                             :help "链接和图片可直接激活；视频在文档内播放，缺少解码器时使用系统播放器。")
                        (when background
                          (list :background-color background)))
                (list

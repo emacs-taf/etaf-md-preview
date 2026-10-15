@@ -35,15 +35,17 @@
 
 (defvar etaf-md-preview-mode-map
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "n") #'etaf-md-preview-next-heading)
-    (define-key map (kbd "p") #'etaf-md-preview-previous-heading)
-    (define-key map (kbd "C-c j") #'etaf-md-preview-goto-heading)
-    (define-key map (kbd "r") #'etaf-md-preview-reload)
-    (define-key map (kbd "t") #'etaf-md-preview--cycle-theme-command)
-    (define-key map (kbd "[") #'etaf-md-preview-narrower)
-    (define-key map (kbd "]") #'etaf-md-preview-wider)
-    (define-key map (kbd "C-c h") #'etaf-md-preview-help)
-    (define-key map (kbd "q") #'etaf-md-preview-close)
+    (dolist (binding '(("n" etaf-md-preview-next-heading "下一个标题")
+                       ("p" etaf-md-preview-previous-heading "上一个标题")
+                       ("C-c j" etaf-md-preview-goto-heading "选择标题")
+                       ("r" etaf-md-preview-reload "重新加载文档")
+                       ("t" etaf-md-preview--cycle-theme-command "切换主题")
+                       ("[" etaf-md-preview-narrower "缩窄阅读栏")
+                       ("]" etaf-md-preview-wider "加宽阅读栏")
+                       ("C-c h" etaf-help "查看快捷键")
+                       ("q" etaf-md-preview-close "关闭预览")))
+      (define-key map (kbd (car binding))
+                  (list 'menu-item (nth 2 binding) (nth 1 binding))))
     map)
   "Keymap of a buffer opened by `etaf-md-preview-open'.
 Native scrolling, isearch and link activation stay available; the map only
@@ -129,13 +131,6 @@ without a page background resets the remap so the Emacs theme shows through."
          (cap (etaf-md-preview-adjust-width session -4)))
     (message "Reading width: %d (max %d)"
              (etaf-md-preview--effective-width session) cap)))
-
-(defun etaf-md-preview-help ()
-  "Show the previewer's key bindings."
-  (interactive)
-  (message
-   (concat "n/p 上/下个标题 · C-c j 选择标题 · r 重新加载 · t 切换主题"
-           " · [ ] 调整栏宽 · q 关闭 · 链接/图片按 RET 打开 · 视频按 RET 播放/暂停")))
 
 (defun etaf-md-preview-close ()
   "Unmount the current preview and kill its buffer."

@@ -533,5 +533,42 @@ the system opener instead."
     (etaf-md-preview-tests--with-mount session
       (should-not (string-match-p "tags" (substring-no-properties (buffer-string)))))))
 
+(ert-deftest etaf-md-preview-tests-help-stays-in-preview ()
+  "Help is searchable in place and preserves the preview's reading state."
+  (save-window-excursion
+    (let* ((session (etaf-md-preview-create :text "# Help acceptance\n\nKeep reading here.\n"))
+           (buffer (etaf-md-preview-open session))
+           (runtime (etaf-runtime-for-buffer buffer)))
+      (unwind-protect
+          (with-current-buffer buffer
+            (let ((windows (window-list))
+                  (before (etaf-md-preview-state session)))
+              (dolist (key '("?" "C-c h"))
+                (execute-kbd-macro (kbd key))
+                (let* ((data (etaf-help-data runtime))
+                       (entries (apply #'append (mapcar (lambda (group) (plist-get group :entries))
+                                                        (plist-get data :groups))))
+                       (reload (cl-find "r" entries :key (lambda (entry) (plist-get entry :key))
+                                        :test #'equal))
+                       (same-runtime (eq runtime (etaf-runtime-for-buffer buffer))))
+                  (should same-runtime)
+                  (should (equal windows (window-list)))
+                  (should (eq (window-buffer) buffer))
+                  (should (equal (plist-get reload :label) "重新加载文档")))
+                (execute-kbd-macro (kbd "/"))
+                (execute-kbd-macro "?")
+                (execute-kbd-macro (kbd "<escape>"))
+                (let ((editing (etaf-text-input-active-p runtime)))
+                  (should-not editing))
+                (should (string-match-p "快捷键 · 只读"
+                                        (buffer-substring-no-properties (point-min) (point-max))))
+                (execute-kbd-macro (kbd "<escape>"))
+                (let ((state (etaf-md-preview-state session))
+                      (text (buffer-substring-no-properties (point-min) (point-max))))
+                  (should (equal state before))
+                  (should (string-match-p "Help acceptance" text))))))
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer (etaf-md-preview-close)))))))
+
 (provide 'etaf-md-preview-tests)
 ;;; etaf-md-preview-tests.el ends here
