@@ -2,7 +2,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.1
+;; Version: 0.1.2
 ;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0") (ebox "3.0.0"))
 ;; Keywords: hypermedia, docs
 ;; URL: https://github.com/emacs-taf/etaf-md-preview
@@ -160,11 +160,14 @@
   "Markdown preview appearance and reading behavior."
   :group 'text)
 
-(when-let* ((directory (and load-file-name
-                           (file-name-directory load-file-name)))
-            (lisp (expand-file-name "lisp" directory)))
-  (when (file-directory-p lisp)
-    (add-to-list 'load-path lisp)))
+;;;###autoload
+(eval-and-compile
+  (add-to-list 'load-path
+               (expand-file-name "lisp"
+                                 (file-name-directory
+                                  (or load-file-name
+                                      (bound-and-true-p byte-compile-current-file)
+                                      buffer-file-name)))))
 
 (require 'etaf-ui)
 (require 'etaf-md-preview-theme)

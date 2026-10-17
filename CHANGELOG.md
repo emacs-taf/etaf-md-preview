@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Fixed
+
+- The entry resolves its own `lisp/` directory while byte-compiling as well as at
+  load time. Installing the archive compiled the entry with `load-file-name`
+  unset, so `etaf-md-preview-theme` was not found and `package.el` reported
+  "Cannot open load file".
+
+## Unreleased
+
 ### Added
 
 - `etaf-md-preview-doctor` reports the optional ffmpeg capability in the same
