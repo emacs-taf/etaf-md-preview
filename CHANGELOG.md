@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `etaf-md-preview-doctor` reports the optional ffmpeg capability in the same
+  shape as `etaf-install-doctor`; reading Markdown needs no external program.
+
 All notable user-visible changes to ETAF Markdown Preview. This project follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

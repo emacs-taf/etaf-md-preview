@@ -2,7 +2,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.0
+;; Version: 0.1.1
 ;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0") (ebox "3.0.0"))
 ;; Keywords: hypermedia, docs
 ;; URL: https://github.com/emacs-taf/etaf-md-preview
@@ -37,6 +37,10 @@
 ;; implementations and precise docstrings remain beside their definitions, and
 ;; the manual contains workflows.
 ;;
+;; Function: etaf-md-preview-doctor ()
+;; Return capability facts for reading Markdown.  The shape matches
+;; `etaf-install-doctor'; ffmpeg is optional and only affects video cards and
+;; terminal image conversion.
 ;; Function: etaf-md-preview-open (&optional source)
 ;;;###autoload (autoload 'etaf-md-preview-open "etaf-md-preview" nil t)
 ;; Mount a markdown preview and return its buffer.
@@ -167,6 +171,16 @@
 (require 'etaf-md-preview-model)
 (require 'etaf-md-preview-views)
 (require 'etaf-md-preview-app)
+
+(defun etaf-md-preview-doctor ()
+  "Return capability facts for reading Markdown in ETAF.
+The shape matches `etaf-install-doctor': :required and :optional lists of
+(LABEL AVAILABLE REMEDY).  Reading text needs no external program."
+  (list :required nil
+        :optional
+        (list (list "ffmpeg" (and (executable-find "ffmpeg") t)
+                    "Optional: install ffmpeg to play video cards and convert terminal images."))))
+
 
 (provide 'etaf-md-preview)
 ;;; etaf-md-preview.el ends here
