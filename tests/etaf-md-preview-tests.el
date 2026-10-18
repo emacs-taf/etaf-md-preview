@@ -400,7 +400,7 @@ the system opener instead."
             ;; The dark palette's page background, as shipped.
             (should (equal (etaf-md-preview-tests--face-attribute
                             "plain" :background)
-                           "#0d1117"))))
+                           "#191a1c"))))
       (kill-buffer auto-buffer)
       (kill-buffer dark-buffer))))
 
