@@ -9,7 +9,7 @@
 ;; refit it across widths; every operation uses public APIs.  Run it with:
 ;;
 ;;   python3 scripts/performance.py run --mode batch \
-;;     --scenario-file etaf-apps/etaf-md-preview/benchmarks/performance-scenarios.el \
+;;     --scenario-file etaf-md-preview/benchmarks/performance-scenarios.el \
 ;;     --scenario md-preview.refit.width --diagnose
 
 ;;; Code:

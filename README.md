@@ -59,7 +59,7 @@ siblings, then add each repository root to `load-path` and require the entry:
 (add-to-list 'load-path "/path/to/emacs-taf/ebox")
 (add-to-list 'load-path "/path/to/emacs-taf/etaf-ui")
 (add-to-list 'load-path "/path/to/emacs-taf/etaf")
-(add-to-list 'load-path "/path/to/emacs-taf/etaf-apps/etaf-md-preview")
+(add-to-list 'load-path "/path/to/emacs-taf/etaf-md-preview")
 (require 'etaf-md-preview)
 ```
 
