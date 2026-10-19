@@ -214,7 +214,7 @@ themselves."
            (existing (get-buffer name)))
       (if (and existing (buffer-live-p existing)
                (buffer-local-value 'etaf-md-preview--session existing))
-          (pop-to-buffer existing)
+          (switch-to-buffer existing)
         (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
 
 (defun etaf-md-preview--buffer-name-for-session (session)
@@ -246,7 +246,7 @@ themselves."
                                 (cons (nth 1 (nth (car cell) outline))
                                       (cdr cell)))
                               (etaf-md-preview--heading-positions session))))))
-    (pop-to-buffer buffer)
+    (switch-to-buffer buffer)
     (etaf-md-preview--fit-width session)
     (etaf-mount buffer (etaf-md-preview-view session))
     (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
