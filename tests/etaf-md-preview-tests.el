@@ -64,19 +64,23 @@ plists or a single plist."
 (defun etaf-md-preview-tests--media-grid-shape ()
   "Return the (COLUMNS . ROWS) of the media grid in the current buffer.
 A converter prints one uniform block of `▀' characters; the monochrome
-fallback prints the same shape as dots, so both are recognized."
+fallback prints the same shape as dots, so both are recognized.  The grid
+sits inside the card border, so only the longest run of cells on a line
+counts."
   (let ((best (cons 0 0))
          (columns 0)
          (rows 0))
     (save-excursion
       (goto-char (point-min))
       (while (not (eobp))
-        (let* ((line (string-trim
-                      (buffer-substring-no-properties
-                       (line-beginning-position) (line-end-position))))
-               (cells (and (> (length line) 1)
-                           (string-match-p "\\`[▀.]*\\'" line)
-                           (length line))))
+        (let* ((line (buffer-substring-no-properties
+                      (line-beginning-position) (line-end-position)))
+               (run (let ((start 0) (longest 0))
+                      (while (string-match "[▀.]+" line start)
+                        (setq longest (max longest (- (match-end 0) (match-beginning 0)))
+                              start (match-end 0)))
+                      longest))
+               (cells (and (> run 1) run)))
           (if (and cells (= cells columns))
               (cl-incf rows)
             (progn
