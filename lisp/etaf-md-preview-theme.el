@@ -12,6 +12,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'etaf-ui)
 
 (defconst etaf-md-preview-themes
   '((dark . ((:bg . "#191a1c")
@@ -208,30 +209,19 @@ previewer's colors."
          (muted (funcall lookup :muted))
          (accent (funcall lookup :accent))
          (accent-soft (funcall lookup :accent-soft)))
-    (list :ink ink :paper bg :panel panel :line line :muted muted
-          :accent accent :accent-soft accent-soft
-          :ui-fg ink :ui-bg bg :ui-border line :ui-muted-fg muted
-          :ui-disabled-fg muted :ui-disabled-bg panel :ui-disabled-border line
-          :ui-accent accent :ui-accent-fg "#ffffff" :ui-accent-soft-bg accent-soft
-          :ui-button-primary-fg "#ffffff" :ui-button-primary-bg accent
-          :ui-button-secondary-fg accent :ui-button-secondary-bg accent-soft
-          :ui-button-ghost-fg muted
-          :ui-success-fg (if dark "#3fb950" "#1a7f37")
-          :ui-success-bg (if dark "#12261e" "#dafbe1")
-          :ui-success-border (if dark "#2ea04366" "#aceebb")
-          :ui-warning-fg (if dark "#d29922" "#9a6700")
-          :ui-warning-bg (if dark "#272115" "#fff8c5")
-          :ui-warning-border (if dark "#d2992266" "#d4a72c")
-          :ui-danger-fg (if dark "#f85149" "#d1242f")
-          :ui-danger-bg (if dark "#2a1518" "#ffebe9")
-          :ui-danger-border (if dark "#f8514966" "#ff818266")
-          :ui-info-fg accent :ui-info-bg accent-soft :ui-info-border line
-          :ui-panel-fg ink :ui-panel-bg panel :ui-panel-border line
-          :ui-divider-bg line
-          :ui-progress-track panel2 :ui-progress-value accent
-          :ui-table-border line :ui-table-selected-fg accent
-          :ui-table-selected-bg accent-soft
-          :ui-checkbox-enabled-fg ink :ui-checkbox-disabled-fg muted)))
+    (etaf-ui-theme-tokens
+     (list :bg bg :fg ink :panel panel :track panel2 :border line :muted muted
+           :accent accent :accent-fg "#ffffff" :accent-soft accent-soft
+           :success (if dark "#3fb950" "#1a7f37")
+           :success-bg (if dark "#12261e" "#dafbe1")
+           :success-border (if dark "#2ea04366" "#aceebb")
+           :warning (if dark "#d29922" "#9a6700")
+           :warning-bg (if dark "#272115" "#fff8c5")
+           :warning-border (if dark "#d2992266" "#d4a72c")
+           :danger (if dark "#f85149" "#d1242f")
+           :danger-bg (if dark "#2a1518" "#ffebe9")
+           :danger-border (if dark "#f8514966" "#ff818266")
+           :info accent :info-bg accent-soft :info-border line))))
 
 (provide 'etaf-md-preview-theme)
 ;;; etaf-md-preview-theme.el ends here

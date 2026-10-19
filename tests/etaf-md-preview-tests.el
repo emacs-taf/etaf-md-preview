@@ -574,5 +574,47 @@ the system opener instead."
         (when (buffer-live-p buffer)
           (with-current-buffer buffer (etaf-md-preview-close)))))))
 
+;; The heading keys are root Host keys, so they win over the renderer's own
+;; `n', `p' and `q' (line scrolling and `quit-window').
+(ert-deftest etaf-md-preview-tests-keys-win-over-renderer-scrolling ()
+  "`n' and `p' walk headings and `q' closes through the command loop."
+  (save-window-excursion
+    (let* ((session (etaf-md-preview-create
+                     :text "# Alpha\n\nbody\n\n## Beta\n\nmore\n"))
+           (buffer (etaf-md-preview-open session)))
+      (unwind-protect
+          (with-current-buffer buffer
+            (should (etaf-md-preview-locate session 0))
+            (execute-kbd-macro (kbd "n"))
+            (should (looking-at-p "Beta"))
+            (execute-kbd-macro (kbd "p"))
+            (should (looking-at-p "Alpha"))
+            (execute-kbd-macro (kbd "q"))
+            (should-not (buffer-live-p buffer))
+            (should-not (plist-get session :buffer)))
+        (when (buffer-live-p buffer)
+          (with-current-buffer buffer (etaf-md-preview-close)))))))
+
+(ert-deftest etaf-md-preview-tests-palette-paints-the-canvas ()
+  "Choosing a palette paints unpainted cells with its page background."
+  (let* ((session (etaf-md-preview-create :text "# Canvas\n"))
+         (buffer (etaf-md-preview-open session))
+         colors)
+    (unwind-protect
+        (with-current-buffer buffer
+          (dolist (theme '(dark light sepia))
+            (etaf-md-preview-set-theme session theme)
+            (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+            (let ((painted (delete-dups
+                            (mapcar (lambda (spec) (plist-get spec :background))
+                                    (alist-get 'default face-remapping-alist)))))
+              ;; The base remap and the root's own canvas agree on one color.
+              (should (= (length painted) 1))
+              (push (car painted) colors)))
+          (should (cl-every #'stringp colors))
+          (should (= (length (delete-dups colors)) 3)))
+      (when (buffer-live-p buffer)
+        (with-current-buffer buffer (etaf-md-preview-close))))))
+
 (provide 'etaf-md-preview-tests)
 ;;; etaf-md-preview-tests.el ends here

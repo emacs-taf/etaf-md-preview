@@ -10,11 +10,11 @@
 ;; preview in one place; it also provides the palette tokens to its subtree so
 ;; shared ETAF UI Components follow the same colors.
 ;;
-;; `etaf-md-preview-open' adds what a Component cannot own: the buffer, the
-;; buffer-local keymap, the initial reading measure, and the commands for
-;; outline navigation, reload and theming.  A window resize reflows through the
-;; framework's own viewport update, so the application never rebuilds the view
-;; for a geometry change.
+;; `etaf-md-preview-open' opens the session as an ETAF application: the
+;; application buffer, its root keys, the initial reading measure, the page
+;; background and the commands for outline navigation, reload and theming.  A
+;; window resize reflows through the framework's own viewport update, so the
+;; application never rebuilds the view for a geometry change.
 
 ;;; Code:
 
@@ -26,44 +26,28 @@
 (require 'etaf-md-preview-model)
 (require 'etaf-md-preview-views)
 
-(defvar-local etaf-md-preview--session nil
-  "Preview session shown by the current buffer's runtime.")
-
 (defun etaf-md-preview--buffer-name (file)
   "Return the preview buffer name for FILE."
   (format "*ETAF Markdown: %s*" (file-name-nondirectory file)))
 
-(defvar etaf-md-preview-mode-map
-  (let ((map (make-sparse-keymap)))
-    (dolist (binding '(("n" etaf-md-preview-next-heading "下一个标题")
-                       ("p" etaf-md-preview-previous-heading "上一个标题")
-                       ("C-c j" etaf-md-preview-goto-heading "选择标题")
-                       ("r" etaf-md-preview-reload "重新加载文档")
-                       ("t" etaf-md-preview--cycle-theme-command "切换主题")
-                       ("[" etaf-md-preview-narrower "缩窄阅读栏")
-                       ("]" etaf-md-preview-wider "加宽阅读栏")
-                       ("C-c h" etaf-help "查看快捷键")
-                       ("q" etaf-md-preview-close "关闭预览")))
-      (define-key map (kbd (car binding))
-                  (list 'menu-item (nth 2 binding) (nth 1 binding))))
-    map)
-  "Keymap of a buffer opened by `etaf-md-preview-open'.
-Native scrolling, isearch and link activation stay available; the map only
-adds outline navigation, reloading, theming and closing.")
+(defconst etaf-md-preview--keys
+  '(("n" etaf-md-preview-next-heading "下一个标题")
+    ("p" etaf-md-preview-previous-heading "上一个标题")
+    ("C-c j" etaf-md-preview-goto-heading "选择标题")
+    ("r" etaf-md-preview-reload "重新加载文档")
+    ("t" etaf-md-preview--cycle-theme-command "切换主题")
+    ("[" etaf-md-preview-narrower "缩窄阅读栏")
+    ("]" etaf-md-preview-wider "加宽阅读栏")
+    ("C-c h" etaf-help "查看快捷键")
+    ("q" etaf-md-preview-close "关闭预览"))
+  "Root keys of a preview opened by `etaf-md-preview-open'.
+Native scrolling, isearch and link activation stay available; the keys only
+add outline navigation, reloading, theming and closing.")
 
 (defun etaf-md-preview--current-session ()
   "Return the preview session of the current buffer."
-  (or etaf-md-preview--session
+  (or (etaf-app-state)
       (user-error "Not an ETAF markdown preview buffer")))
-
-(defun etaf-md-preview--remap-canvas-face (session)
-  "Paint the current buffer's unpainted cells with SESSION's background.
-Ebox paints whole character cells; remapping the default face keeps the
-sub-cell remainder at the window edge in the page's background.  A session
-without a page background resets the remap so the Emacs theme shows through."
-  (if-let* ((background (etaf-md-preview--page-background session)))
-      (face-remap-set-base 'default (list :background background))
-    (face-remap-reset-base 'default)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Navigation and display commands
@@ -113,7 +97,6 @@ without a page background resets the remap so the Emacs theme shows through."
   (interactive)
   (let ((session (etaf-md-preview--current-session)))
     (etaf-md-preview-cycle-theme session)
-    (etaf-md-preview--remap-canvas-face session)
     (message "Theme: %s" (etaf-md-preview--read session :theme))))
 
 (defun etaf-md-preview-wider ()
@@ -135,12 +118,8 @@ without a page background resets the remap so the Emacs theme shows through."
 (defun etaf-md-preview-close ()
   "Unmount the current preview and kill its buffer."
   (interactive)
-  (let ((session (etaf-md-preview--current-session))
-        (buffer (current-buffer)))
-    (when-let* ((runtime (etaf-runtime-for-buffer buffer)))
-      (etaf-unmount runtime))
-    (plist-put session :buffer nil)
-    (kill-buffer buffer)))
+  (etaf-md-preview--current-session)
+  (etaf-app-close))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Window fitting
@@ -212,8 +191,7 @@ themselves."
     (let* ((file (expand-file-name source))
            (name (etaf-md-preview--buffer-name file))
            (existing (get-buffer name)))
-      (if (and existing (buffer-live-p existing)
-               (buffer-local-value 'etaf-md-preview--session existing))
+      (if (and existing (etaf-app-state existing))
           (switch-to-buffer existing)
         (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
 
@@ -224,21 +202,28 @@ themselves."
     "*ETAF Markdown*"))
 
 (defun etaf-md-preview--display (session name)
-  "Mount SESSION in the buffer NAME and return that buffer."
-  (let ((buffer (get-buffer-create name)))
+  "Open SESSION as the application buffer NAME and return that buffer.
+The showing window sets the initial reading measure only; later resizes
+reflow the viewport-relative column without changing it, so a width chosen
+with `[' and `]' survives them.  Cells the page does not paint, such as the
+sub-cell remainder at the window edge, take the page background, and a
+session without one lets the Emacs theme show through."
+  (let* ((measured nil)
+         (buffer
+          (etaf-app-open
+           name
+           (etaf-view (etaf-md-preview-app :session session :keys etaf-md-preview--keys))
+           :state session
+           :mode-line t
+           :background (lambda () (etaf-md-preview--page-background session))
+           :on-fit (lambda (_window)
+                     (unless measured
+                       (setq measured t)
+                       (plist-put session :buffer (current-buffer))
+                       (etaf-md-preview--fit-width session)))
+           :on-close (lambda () (plist-put session :buffer nil)))))
     (plist-put session :buffer buffer)
     (with-current-buffer buffer
-      (setq-local etaf-md-preview--session session)
-      (setq-local truncate-lines t)
-      ;; The preview owns every column it paints; a sub-cell rounding
-      ;; remainder must not surface as Emacs's truncation glyph.
-      (setq-local buffer-display-table
-                  (let ((table (copy-sequence (or standard-display-table
-                                                  (make-display-table)))))
-                    (set-display-table-slot table 'truncation ?\s)
-                    table))
-      (etaf-md-preview--remap-canvas-face session)
-      (use-local-map etaf-md-preview-mode-map)
       (setq-local imenu-create-index-function
                   (lambda ()
                     (let ((outline (etaf-md-preview-outline session)))
@@ -246,9 +231,6 @@ themselves."
                                 (cons (nth 1 (nth (car cell) outline))
                                       (cdr cell)))
                               (etaf-md-preview--heading-positions session))))))
-    (switch-to-buffer buffer)
-    (etaf-md-preview--fit-width session)
-    (etaf-mount buffer (etaf-md-preview-view session))
     (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
     buffer))
 

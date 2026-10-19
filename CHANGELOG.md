@@ -2,8 +2,20 @@
 
 ## Unreleased
 
+### Changed
+
+- The preview opens as an ETAF application: its keys are declared on the
+  root Host, so `n`, `p` and `q` reach heading navigation and closing
+  instead of the renderer's line scrolling and `quit-window`, and the page
+  background follows a palette change without a separate repaint.
+  `etaf-md-preview-mode-map` is gone; the keys are listed in `?` help.
+  Requires ETAF 0.3.0 and ETAF UI 0.2.0.
+
 ### Fixed
 
+- Selecting the palette the `auto` theme had already resolved to applies the
+  named palette's surfaces and page background; the palette source is now
+  reactive, so the selection repaints even when the palette name is unchanged.
 - The entry resolves its own `lisp/` directory while byte-compiling as well as at
   load time. Installing the archive compiled the entry with `load-file-name`
   unset, so `etaf-md-preview-theme` was not found and `package.el` reported

@@ -139,6 +139,16 @@
       "name": "etaf-md-preview-tests-flavor-rejects-unknown-name",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "An unknown dialect name is reported instead of guessed."
+    },
+    {
+      "name": "etaf-md-preview-tests-keys-win-over-renderer-scrolling",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The n, p and q keys walk headings and close the preview through the command loop instead of the renderer's scrolling keys."
+    },
+    {
+      "name": "etaf-md-preview-tests-palette-paints-the-canvas",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Choosing each palette paints the cells the page does not cover with that palette's page background."
     }
   ]
 }

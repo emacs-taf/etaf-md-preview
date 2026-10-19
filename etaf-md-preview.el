@@ -2,8 +2,8 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Author: ETAF contributors
-;; Version: 0.1.3
-;; Package-Requires: ((emacs "29.1") (etaf "0.2.1") (etaf-ui "0.1.0") (ebox "3.0.0"))
+;; Version: 0.1.4
+;; Package-Requires: ((emacs "29.1") (etaf "0.3.0") (etaf-ui "0.2.0") (ebox "3.1.0"))
 ;; Keywords: hypermedia, docs
 ;; URL: https://github.com/emacs-taf/etaf-md-preview
 
@@ -49,8 +49,9 @@
 ;; markdown file and then to a file prompt; a file that already has a preview
 ;; buffer is selected instead of rendered twice.  Opening a session mounts
 ;; that session, so callers can render a document they built themselves.  The
-;; buffer gets `etaf-md-preview-mode-map'; the reading measure starts from the
-;; showing window and later resizes reflow through the framework's viewport
+;; buffer is an ETAF application (`etaf-app-open') whose root keys add outline
+;; navigation, reloading, theming and closing; the reading measure starts from
+;; the showing window and later resizes reflow through the framework's viewport
 ;; update, so the document is never rebuilt for a window geometry change.
 ;; Closing the buffer releases the session's Runtime, so reopening the same
 ;; file renders a fresh preview.
@@ -58,7 +59,7 @@
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)
 ;; Unmount the current preview buffer and kill it.
-;; Signals `etaf-md-preview-error' when the current buffer is not a preview.
+;; Signals `user-error' when the current buffer is not a preview.
 ;;
 ;; Function: etaf-md-preview-view (&optional session)
 ;;;###autoload (autoload 'etaf-md-preview-view "etaf-md-preview" nil t)
@@ -110,13 +111,13 @@
 ;;;###autoload (autoload 'etaf-md-preview-next-heading "etaf-md-preview" nil t)
 ;; Move point to the next outline heading of the current preview.
 ;; Reports "No further heading" when the document has no later heading and
-;; signals `etaf-md-preview-error' when the current buffer is not a preview.
+;; signals `user-error' when the current buffer is not a preview.
 ;;
 ;; Function: etaf-md-preview-previous-heading ()
 ;;;###autoload (autoload 'etaf-md-preview-previous-heading "etaf-md-preview" nil t)
 ;; Move point to the previous outline heading of the current preview.
 ;; Reports "No earlier heading" at the first heading and signals
-;; `etaf-md-preview-error' when the current buffer is not a preview.
+;; `user-error' when the current buffer is not a preview.
 ;;
 ;; Function: etaf-md-preview-locate (session index)
 ;; Move point to SESSION's outline heading INDEX and recenter.

@@ -129,7 +129,8 @@ plist may toggle individual extensions."
           :theme (etaf-ref palette :name 'etaf-md-preview-theme)
           ;; `auto' derives its surface palette from the active frame's faces
           ;; and paints no page background; a named palette paints its page.
-          :theme-source (if auto 'frame 'palette)
+          :theme-source (etaf-ref (if auto 'frame 'palette)
+                                  :name 'etaf-md-preview-theme-source)
           :width (etaf-ref 92 :name 'etaf-md-preview-width)
           :error (etaf-ref nil :name 'etaf-md-preview-error-text)
           :buffer nil
@@ -168,7 +169,7 @@ page background, and nil when it leaves the Emacs theme's background."
           :dir (plist-get session :dir)
           :flavor (plist-get session :flavor)
           :theme (etaf-md-preview--read session :theme)
-          :background (when (eq (plist-get session :theme-source) 'palette)
+          :background (when (eq (etaf-md-preview--read session :theme-source) 'palette)
                         'palette)
           :width (etaf-md-preview--read session :width)
           :outline (copy-tree (plist-get document :outline))
@@ -201,8 +202,9 @@ paints its page background."
   (unless (assq theme etaf-md-preview-themes)
     (signal 'etaf-md-preview-error
             (list (format "Unknown markdown preview theme: %S" theme))))
-  (etaf-md-preview--write session :theme theme)
-  (plist-put session :theme-source 'palette)
+  (etaf-batch
+    (etaf-md-preview--write session :theme theme)
+    (etaf-md-preview--write session :theme-source 'palette))
   session)
 
 (defun etaf-md-preview-cycle-theme (session)
@@ -377,17 +379,17 @@ the file directly."
 The session paints its palette's background only after an explicit palette
 selection; the face-derived `auto' appearance leaves the active Emacs theme's
 background visible instead."
-  (when (eq (plist-get session :theme-source) 'palette)
+  (when (eq (etaf-md-preview--read session :theme-source) 'palette)
     (etaf-md-preview-color :bg (etaf-md-preview--read session :theme))))
 
 (defun etaf-md-preview--session-palette (session)
   "Return SESSION's surface palette, or nil for the named palette colors.
 Sessions created with the `auto' theme derive their surfaces from the active
 frame's faces, so panels, tables and code blocks match the user's own theme.
-A session that has not selected a palette explicitly (including one created
-before this option existed) uses the face-derived palette; a named palette
+A session that has not selected a palette explicitly uses the face-derived
+palette; a named palette
 returns its own color alist so the shared renderer never needs a theme name."
-  (if (eq (plist-get session :theme-source) 'palette)
+  (if (eq (etaf-md-preview--read session :theme-source) 'palette)
       (cdr (assq (etaf-md-preview--read session :theme) etaf-md-preview-themes))
     (etaf-md-preview--palette-from-faces)))
 
