@@ -688,6 +688,32 @@ repaints with the chosen page instead of only the frame chrome."
     (etaf-md-preview-tests--with-mount session
       (should-not (string-match-p "tags" (substring-no-properties (buffer-string)))))))
 
+(ert-deftest etaf-md-preview-tests-open-prompt-defaults-to-the-relative-file ()
+  "The file prompt defaults to the current buffer's file, as a relative name.
+`read-file-name' resolves a relative default against its own directory; an
+absolute one made the prompt show that directory twice."
+  (let ((dir (make-temp-file "etaf-md-preview-prompt" t))
+        (default nil))
+    (unwind-protect
+        (progn
+          (with-temp-file (expand-file-name "note.md" dir) (insert "# Note\n"))
+          (with-temp-buffer
+            (setq buffer-file-name (expand-file-name "note.md" dir)
+                  default-directory (file-name-as-directory dir))
+            (cl-letf (((symbol-function 'read-file-name)
+                       (lambda (_prompt &optional _directory _predicate _mustmatch
+                                preset &rest _)
+                         (setq default preset)
+                         buffer-file-name)))
+              (call-interactively #'etaf-md-preview-open)))
+          (should default)
+          (should-not (file-name-absolute-p default))
+          (should (equal "note.md" default)))
+      (dolist (buffer (buffer-list))
+        (when (string-prefix-p "*ETAF Markdown" (buffer-name buffer))
+          (with-current-buffer buffer (ignore-errors (etaf-md-preview-close)))))
+      (delete-directory dir t))))
+
 (ert-deftest etaf-md-preview-tests-help-stays-in-preview ()
   "Help is searchable in place and preserves the preview's reading state."
   (save-window-excursion

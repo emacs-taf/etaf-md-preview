@@ -205,7 +205,7 @@ themselves."
           "Markdown file: " nil nil t
           (when (and buffer-file-name
                      (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'" buffer-file-name))
-            buffer-file-name))))
+            (file-relative-name buffer-file-name default-directory)))))
   (if (and (listp source) (etaf-ref-p (plist-get source :document)))
       (etaf-md-preview--display source (etaf-md-preview--buffer-name-for-session source))
     (let* ((file (expand-file-name source))
