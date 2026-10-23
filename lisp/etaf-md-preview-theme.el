@@ -101,8 +101,8 @@ always select one of those fixed palettes."
   :group 'etaf-md-preview)
 
 (defun etaf-md-preview-auto-theme ()
-  "Return the palette matching the current frame's background mode."
-  (if (eq (frame-parameter nil 'background-mode) 'dark) 'dark 'light))
+  "Return the palette matching the host appearance."
+  (etaf-appearance))
 
 (defun etaf-md-preview--face-color (face attribute fallback)
   "Return FACE's ATTRIBUTE color, or FALLBACK when it is unspecified."
