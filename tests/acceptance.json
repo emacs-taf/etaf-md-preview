@@ -101,6 +101,11 @@
       "purpose": "The auto theme paints no page background; an explicit palette paints its own."
     },
     {
+      "name": "etaf-md-preview-tests-declares-its-surface-to-a-host",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A host frames the preview from the palette, theme cell and modes it declares, so a panel's title-bar switch repaints the document with the chosen page."
+    },
+    {
       "name": "etaf-md-preview-tests-auto-theme-derives-surfaces-from-faces",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "The auto theme blends panel surfaces from the frame's own faces."

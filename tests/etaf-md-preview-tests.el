@@ -384,6 +384,63 @@ the system opener instead."
     (should-error (etaf-md-preview-set-theme session 'neon)
                   :type 'etaf-md-preview-error)))
 
+(defun etaf-md-preview-tests--row-painting (buffer color)
+  "Return the first position in BUFFER whose face paints COLOR as background."
+  (with-current-buffer buffer
+    (let ((pos (point-min))
+          found)
+      (while (and (< pos (point-max)) (not found))
+        (when (equal color
+                     (plist-get (get-text-property pos 'face) :background))
+          (setq found pos))
+        (setq pos (1+ pos)))
+      found)))
+
+(defun etaf-md-preview-tests--painted-background (buffer position)
+  "Return the background BUFFER paints at POSITION."
+  (with-current-buffer buffer
+    (plist-get (get-text-property position 'face) :background)))
+
+(etaf-define-component etaf-md-preview-tests--framing-host (&key surface session)
+  "Provide SURFACE to the preview SESSION and render it below."
+  :setup (etaf-surface-provide surface)
+  :render (etaf-md-preview-view session))
+
+(ert-deftest etaf-md-preview-tests-declares-its-surface-to-a-host ()
+  "A host frames the preview from the surface the preview declares.
+The panel's title-bar switch writes the session's theme cell, so the document
+repaints with the chosen page instead of only the frame chrome."
+  (let* ((session (etaf-md-preview-create :text "# Title\n\nBody text.\n"))
+         (surface (etaf-surface-create))
+         (buffer (generate-new-buffer " *etaf-md-preview framing host*")))
+    (unwind-protect
+        (progn
+          (etaf-mount buffer
+                      (etaf-view (etaf-md-preview-tests--framing-host
+                                  :surface surface :session session))
+                      (list :viewport-width 900 :viewport-height 60))
+          (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+          (should (equal '((light . "亮") (auto . "随") (dark . "暗") (sepia . "纸"))
+                         (etaf-surface-modes surface)))
+          (should (eq 'auto (etaf-value (etaf-surface-mode surface))))
+          (etaf-set-value (etaf-surface-mode surface) 'light)
+          (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+          (should (eq 'light (plist-get (etaf-md-preview-state session) :theme)))
+          (let* ((light (plist-get (etaf-value (etaf-surface-theme surface)) :ui-bg))
+                 (pos (etaf-md-preview-tests--row-painting buffer light)))
+            (should (equal light "#ffffff"))
+            (should pos)
+            (etaf-set-value (etaf-surface-mode surface) 'dark)
+            (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+            (let ((dark (plist-get (etaf-value (etaf-surface-theme surface)) :ui-bg)))
+              (should (equal dark "#191a1c"))
+              (should (equal dark
+                             (etaf-md-preview-tests--painted-background
+                              buffer pos))))))
+      (when-let* ((runtime (etaf-runtime-for-buffer buffer)))
+        (etaf-unmount runtime))
+      (kill-buffer buffer))))
+
 (ert-deftest etaf-md-preview-tests-auto-theme-keeps-the-emacs-background ()
   "The default theme paints no page background; an explicit one does."
   (let* ((auto (etaf-md-preview-create

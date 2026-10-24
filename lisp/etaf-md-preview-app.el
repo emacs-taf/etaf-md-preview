@@ -151,6 +151,7 @@ whole preview without a remount."
                                   '("etaf-md-preview-app needs the :session from `etaf-md-preview-create'"))))
              (document (etaf-md-preview--ref preview :document))
              (theme (etaf-md-preview--ref preview :theme))
+             (mode (etaf-md-preview--ref preview :theme-mode))
              (tokens (etaf-computed
                       (lambda ()
                         (etaf-md-preview-theme-tokens
@@ -158,7 +159,24 @@ whole preview without a remount."
                          (etaf-md-preview--session-palette preview)))
                       :name 'etaf-md-preview-theme-tokens)))
   :setup
-  (etaf-theme-provide tokens)
+  (progn
+    (etaf-theme-provide tokens)
+    ;; One appearance state: `auto' resolves to the frame's faces, a named
+    ;; mode paints its fixed page, and a panel's title-bar switch writes the
+    ;; same cell as `t', so the document and the panel chrome follow it.
+    (etaf-watch mode
+                (lambda (mode _old)
+                  (etaf-batch
+                    (etaf-md-preview--write preview :theme
+                                             (if (eq mode 'auto)
+                                                 (etaf-md-preview-auto-theme)
+                                               mode))
+                    (etaf-md-preview--write preview :theme-source
+                                             (if (eq mode 'auto) 'frame 'palette))))
+                :immediate t :name 'etaf-md-preview-mode)
+    (when-let* ((surface (etaf-surface-host)))
+      (etaf-surface-declare surface :theme tokens :mode mode
+                            :modes etaf-md-preview--surface-modes)))
   :render
   (etaf-md-preview--view-document
    (etaf-value document)

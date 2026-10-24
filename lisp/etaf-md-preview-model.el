@@ -131,6 +131,7 @@ plist may toggle individual extensions."
           ;; and paints no page background; a named palette paints its page.
           :theme-source (etaf-ref (if auto 'frame 'palette)
                                   :name 'etaf-md-preview-theme-source)
+          :theme-mode (etaf-ref requested :name 'etaf-md-preview-theme-mode)
           :width (etaf-ref 92 :name 'etaf-md-preview-width)
           :error (etaf-ref nil :name 'etaf-md-preview-error-text)
           :buffer nil
@@ -197,14 +198,20 @@ published document untouched."
 
 (defun etaf-md-preview-set-theme (session theme)
   "Show SESSION with palette THEME; return SESSION.
-Unknown palettes signal `etaf-md-preview-error'.  Selecting a palette also
-paints its page background."
-  (unless (assq theme etaf-md-preview-themes)
+THEME is `auto', `dark', `light' or `sepia'; anything else signals
+`etaf-md-preview-error'.  Selecting a palette also paints its page
+background, while `auto' returns to the face-derived surfaces."
+  (unless (or (eq theme 'auto) (assq theme etaf-md-preview-themes))
     (signal 'etaf-md-preview-error
             (list (format "Unknown markdown preview theme: %S" theme))))
   (etaf-batch
-    (etaf-md-preview--write session :theme theme)
-    (etaf-md-preview--write session :theme-source 'palette))
+    (etaf-md-preview--write session :theme-mode theme)
+    (etaf-md-preview--write session :theme
+                             (if (eq theme 'auto)
+                                 (etaf-md-preview-auto-theme)
+                               theme))
+    (etaf-md-preview--write session :theme-source
+                             (if (eq theme 'auto) 'frame 'palette)))
   session)
 
 (defun etaf-md-preview-cycle-theme (session)

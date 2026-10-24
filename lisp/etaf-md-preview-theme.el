@@ -86,6 +86,12 @@
               (:important-soft . "#e9dcf5"))))
   "Color palettes of the markdown previewer.")
 
+(defconst etaf-md-preview--surface-modes
+  '((light . "亮") (auto . "随") (dark . "暗") (sepia . "纸"))
+  "Appearance modes the preview offers its host, in display order.
+`auto' derives the document colors from the active Emacs theme; the other
+three paint a fixed page palette.")
+
 (defcustom etaf-md-preview-theme 'auto
   "Initial palette of `etaf-md-preview-create' and the page it paints.
 `auto' derives the document colors from the active frame's own faces

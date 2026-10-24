@@ -33,7 +33,9 @@ scrolling, isearch and window splitting keep working.
 - Three fixed palettes (dark, light and sepia) plus a face-derived default
   (`etaf-md-preview-theme' = `auto') that follows the active Emacs theme and
   paints no page background; all colors are published as `:ui-*` theme tokens
-  so shared ETAF UI components follow the preview.
+  so shared ETAF UI components follow the preview.  A floating panel's
+  title-bar switch writes the same theme cell, so it can pin `亮` / `暗` /
+  `纸` or return to `随` and the document repaints with the panel.
 - Outline navigation (`n`/`p`, `C-c j`), imenu integration, reloading (`r`), an
   adjustable maximum reading measure (`[`/`]`) and native scrolling. A window
   resize reflows through the framework's viewport update without rebuilding

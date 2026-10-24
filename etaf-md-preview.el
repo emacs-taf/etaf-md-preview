@@ -98,8 +98,9 @@
 ;;
 ;; Function: etaf-md-preview-set-theme (session theme)
 ;; Show SESSION with the palette THEME and return it.
-;; THEME is a key of `etaf-md-preview-themes' (`dark', `light' or `sepia');
-;; any other value signals `etaf-md-preview-error'.
+;; THEME is `auto' or a key of `etaf-md-preview-themes' (`dark', `light' or
+;; `sepia'); any other value signals `etaf-md-preview-error'.  `auto' returns
+;; to the face-derived surfaces and paints no page background.
 ;;
 ;; Function: etaf-md-preview-cycle-theme (session)
 ;; Switch SESSION to the next palette and return its name.
@@ -138,7 +139,9 @@
 ;; blocks and rules match whatever Emacs theme is active; `dark', `light' and
 ;; `sepia' select that fixed palette explicitly, including its page background.
 ;; `etaf-md-preview-set-theme' and `etaf-md-preview-cycle-theme' always select
-;; an explicit palette, so the page background follows the chosen theme.
+;; an explicit palette, so the page background follows the chosen theme.  An
+;; open preview keeps a live theme cell that a panel's title-bar switch also
+;; writes, so a host can pin a fixed page or return to the face-derived one.
 ;;
 ;; Variable: etaf-md-preview-flavor (default `gfm')
 ;; Default Markdown dialect of `etaf-md-preview-create' when it is not given a
