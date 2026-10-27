@@ -230,11 +230,105 @@ instead of the cached playback metadata."
           (call-interactively (key-binding (kbd "RET"))))))
     (should (equal opened (list video)))))
 
+(defconst etaf-md-preview-tests--documented-gutter 2
+  "Cells the manual promises on each side of the reading measure.")
+
+(defun etaf-md-preview-tests--background-at (position)
+  "Return the painted background at POSITION, or nil."
+  (let ((face (get-text-property position 'face)))
+    (cl-some (lambda (entry)
+               (and (listp entry) (plist-get entry :background)))
+             (if (keywordp (car-safe face)) (list face) face))))
+
+(defun etaf-md-preview-tests--page-margin-pixels ()
+  "Return (LEADING . TRAILING) unpainted blank pixels of the current line.
+A cell of the page margin is a space with no painted background; the table's
+border and cell padding are spaces too, but they paint, so the walk stops at
+them.  A displayed space counts its displayed width, not one character."
+  (let* ((bol (line-beginning-position))
+         (eol (line-end-position))
+         (char (frame-char-width))
+         (leading 0)
+         (trailing 0)
+         (painted-p (lambda (at)
+                      (and (eq (char-after at) ?\s)
+                           (not (null (get-text-property at 'display)))
+                           (etaf-md-preview-tests--background-at at))))
+         (width-p (lambda (at)
+                    (let ((display (get-text-property at 'display)))
+                      (if (and (consp display) (plist-get (cdr display) :width))
+                          (let ((width (plist-get (cdr display) :width)))
+                            (if (numberp width) width (car width)))
+                        char))))
+         (position bol))
+    ;; The page margin is one displayed space per side; a table line adds
+    ;; painted cells after it, so take the unpainted run at each end.
+    (while (and (< position eol) (eq (char-after position) ?\s))
+      (if (funcall painted-p position)
+          (setq position eol)
+        (setq leading (+ leading (funcall width-p position))
+              position (1+ position))))
+    (setq position (1- eol))
+    (while (and (>= position bol) (eq (char-after position) ?\s))
+      (if (funcall painted-p position)
+          (setq position bol)
+        (setq trailing (+ trailing (funcall width-p position))
+              position (1- position))))
+    (cons leading trailing)))
+
+(ert-deftest etaf-md-preview-tests-narrow-window-keeps-the-measure-gutter ()
+  "A narrow window keeps page margin on both sides of the reading measure.
+Neither the text nor a table may reach the reading edge: the renderer
+extends the last cell's paint into the window's sub-cell remainder, so a
+table border on that edge would draw a bar across the gutter."
+  (let ((session (etaf-md-preview-create
+                  :text (concat "## 非目标\n\n"
+                                "| 不做 | 原因 |\n| --- | --- |\n"
+                                "| 手机端 | ETAF 是 Emacs 内的界面 |\n")))
+        (margin (* etaf-md-preview-tests--documented-gutter (frame-char-width)))
+        (char (frame-char-width)))
+    (etaf-md-preview-tests--with-mount session
+      (dolist (cells (list 46 30))
+        (etaf-runtime-refit (etaf-runtime-for-buffer (current-buffer))
+                            (* char cells) 40)
+        (dolist (needle '("不做" "手机端"))
+          (goto-char (point-min))
+          (search-forward needle)
+          (let ((blank (etaf-md-preview-tests--page-margin-pixels)))
+            (should (>= (car blank) margin))
+            (should (>= (cdr blank) margin))
+            (should-not (etaf-md-preview-tests--background-at
+                         (1- (line-end-position))))))))))
+
+(ert-deftest etaf-md-preview-tests-auto-palette-follows-a-theme-switch ()
+  "The face-derived palette follows an Emacs theme switch.
+Ebox resolves colors into the buffer while a View renders, so the preview has
+to render again after the switch Emacs reports through
+`enable-theme-functions'; a palette derived once at mount left light text on a
+light page."
+  (let ((session (etaf-md-preview-create :text "ThemeProbe"))
+        (original (face-attribute 'default :foreground nil t)))
+    (unwind-protect
+        (progn
+          (set-face-attribute 'default nil :foreground "#101010")
+          (etaf-md-preview-tests--with-mount session
+            (should (equal "#101010"
+                           (etaf-md-preview-tests--face-attribute "ThemeProbe" :foreground)))
+            (set-face-attribute 'default nil :foreground "#202020")
+            (run-hooks 'enable-theme-functions)
+            (sleep-for 0.05)
+            (should (equal "#202020"
+                           (etaf-md-preview-tests--face-attribute "ThemeProbe" :foreground)))))
+      (set-face-attribute 'default nil :foreground original))))
+
 (ert-deftest etaf-md-preview-tests-reading-measure-stays-centered-on-refit ()
-  "A capped reading measure stays centered without stretching its content."
+  "A capped reading measure stays centered without stretching its content.
+The measure gutter sits on both sides, so a column that fills the window
+keeps its text one gutter in rather than on the edge."
   (let* ((session (etaf-md-preview-create :text "CenterProbe"))
-         (cap (* (frame-char-width)
-                 (plist-get (etaf-md-preview-state session) :width))))
+         (char (frame-char-width))
+         (gutter (* char etaf-md-preview-tests--documented-gutter))
+         (cap (* char (plist-get (etaf-md-preview-state session) :width))))
     (etaf-md-preview-tests--with-mount session
       (dolist (width (list (+ cap 100) (+ cap 300) (max 40 (- cap 20)) (+ cap 100)))
         (etaf-runtime-refit (etaf-runtime-for-buffer (current-buffer)) width 60)
@@ -242,7 +336,7 @@ instead of the cached playback metadata."
         (search-forward "CenterProbe")
         (let ((left (string-pixel-width
                      (buffer-substring (line-beginning-position) (match-beginning 0)))))
-          (should (<= (abs (- left (/ (max 0 (- width cap)) 2))) 1)))))))
+          (should (<= (abs (- left (max gutter (/ (max 0 (- width cap)) 2)))) 1)))))))
 
 (ert-deftest etaf-md-preview-tests-alerts-end-with-their-body ()
   "Callouts add no empty row after the final body line."

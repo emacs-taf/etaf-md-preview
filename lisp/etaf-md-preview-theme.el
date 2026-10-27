@@ -110,9 +110,11 @@ always select one of those fixed palettes."
   "Return the palette matching the host appearance."
   (etaf-appearance))
 
-(defun etaf-md-preview--face-color (face attribute fallback)
-  "Return FACE's ATTRIBUTE color, or FALLBACK when it is unspecified."
-  (let ((value (ignore-errors (face-attribute face attribute nil t))))
+(defun etaf-md-preview--face-color (face attribute fallback &optional frame)
+  "Return FACE's ATTRIBUTE color, or FALLBACK when it is unspecified.
+FRAME selects the frame to ask; nil asks the selected frame, which is right
+for a headless session that has no window of its own."
+  (let ((value (ignore-errors (face-attribute face attribute frame t))))
     (if (and (stringp value) (not (equal value "unspecified")))
         value
       fallback)))
@@ -132,27 +134,33 @@ resolves a usable surface."
           (apply #'format "#%02x%02x%02x" mixed))
       base)))
 
-(defun etaf-md-preview--palette-from-faces ()
-  "Return a palette derived from the active frame's own faces.
+(defun etaf-md-preview--palette-from-faces (&optional frame)
+  "Return a palette derived from FRAME's own faces.
 Every surface is a blend of the frame's background toward its foreground or
 a semantic accent, so `auto' matches whatever Emacs theme is active instead
-of a fixed page palette."
-  (let* ((background (etaf-md-preview--face-color 'default :background "#ffffff"))
-         (foreground (etaf-md-preview--face-color 'default :foreground "#1f2328"))
+of a fixed page palette.  Reading `etaf-appearance' also ties the derivation
+to the switch Emacs reports through `enable-theme-functions', so a Theme
+computed from this palette re-derives instead of keeping the colors of the
+theme that was active when it was first read."
+  (let* ((_appearance (etaf-appearance))
+         (background (etaf-md-preview--face-color 'default :background "#ffffff" frame))
+         (foreground (etaf-md-preview--face-color 'default :foreground "#1f2328" frame))
          (shadow (etaf-md-preview--face-color
                   'shadow :foreground
-                  (etaf-md-preview--mix-color background foreground 0.55)))
-         (link (or (etaf-md-preview--face-color 'link :foreground nil)
-                   (etaf-md-preview--face-color 'button :foreground nil)
+                  (etaf-md-preview--mix-color background foreground 0.55)
+                  frame))
+         (link (or (etaf-md-preview--face-color 'link :foreground nil frame)
+                   (etaf-md-preview--face-color 'button :foreground nil frame)
                    (etaf-md-preview--face-color
-                    'font-lock-function-name-face :foreground nil)
+                    'font-lock-function-name-face :foreground nil frame)
                    foreground))
-         (heading (etaf-md-preview--face-color 'outline-1 :foreground foreground))
-         (ok (etaf-md-preview--face-color 'success :foreground "#1a7f37"))
-         (warn (etaf-md-preview--face-color 'warning :foreground "#9a6700"))
-         (danger (etaf-md-preview--face-color 'error :foreground "#d1242f"))
+         (heading (etaf-md-preview--face-color
+                   'outline-1 :foreground foreground frame))
+         (ok (etaf-md-preview--face-color 'success :foreground "#1a7f37" frame))
+         (warn (etaf-md-preview--face-color 'warning :foreground "#9a6700" frame))
+         (danger (etaf-md-preview--face-color 'error :foreground "#d1242f" frame))
          (important (etaf-md-preview--face-color
-                     'font-lock-keyword-face :foreground link)))
+                     'font-lock-keyword-face :foreground link frame)))
     (list (cons :bg background)
           (cons :ink foreground)
           (cons :muted shadow)

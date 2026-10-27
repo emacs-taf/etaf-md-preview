@@ -13,6 +13,16 @@
 
 ### Fixed
 
+- The face-derived palette follows an Emacs theme switch. It is derived from the
+  faces of the frame that shows the preview and reads `etaf-appearance' inside
+  the derivation, so switching from a dark to a light theme repaints the
+  document instead of leaving the old theme's ink on the new page.
+- A window that fills the reading measure keeps a two-cell gutter on each side,
+  so text no longer starts on the window edge. The column also clips at that
+  gutter, which stops a table's right border from being extended across the
+  window's last column as a thick bar. A window narrower than the minimum
+  measure plus the gutters keeps its margins and clips a block too wide to
+  shrink, such as a table that must keep its words whole.
 - Selecting the palette the `auto` theme had already resolved to applies the
   named palette's surfaces and page background; the palette source is now
   reactive, so the selection repaints even when the palette name is unchanged.

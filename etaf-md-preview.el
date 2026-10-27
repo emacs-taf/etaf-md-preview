@@ -152,7 +152,10 @@
 ;;
 ;; Variable: etaf-md-preview-width-max (default 110)
 ;; Widest reading measure in character cells; a wider window keeps this measure
-;; and centers it.
+;; and centers it.  The column keeps a two-cell gutter on each side outside the
+;; measure, so text never starts or ends on the window edge; a window narrower
+;; than the minimum measure plus those gutters clips a block that cannot shrink
+;; to the measure instead of painting over the gutter.
 ;;
 ;; Error: etaf-md-preview-error
 ;; Invalid markdown preview session or document input

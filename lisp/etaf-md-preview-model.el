@@ -243,13 +243,15 @@ column fills the window."
 (defun etaf-md-preview--fit-width (session)
   "Set SESSION's reading measure from the window that shows it.
 The stored width is the maximum measure: the column is viewport-relative, so
-a later resize narrows it without changing this value.  A headless session
-keeps its current width.  Return the width in effect."
+a later resize narrows it without changing this value.  The window's own
+measure excludes the gutter the column keeps on each side.  A headless
+session keeps its current width.  Return the width in effect."
   (let* ((buffer (plist-get session :buffer))
          (window (and (buffer-live-p buffer) (get-buffer-window buffer t))))
     (if (window-live-p window)
         (let ((width (etaf-md-preview--clamp-width
-                      (- (window-body-width window) 4))))
+                      (- (window-body-width window)
+                         (* 2 etaf-md-preview--measure-gutter)))))
           (etaf-md-preview--write session :width width)
           width)
       (etaf-md-preview--read session :width))))
@@ -389,16 +391,26 @@ background visible instead."
   (when (eq (etaf-md-preview--read session :theme-source) 'palette)
     (etaf-md-preview-color :bg (etaf-md-preview--read session :theme))))
 
+(defun etaf-md-preview--display-frame (session)
+  "Return the frame showing SESSION, or nil when it has no window.
+A face query answers for a frame, so the palette is derived from the frame the
+preview is read in rather than from whichever frame is selected."
+  (let ((buffer (plist-get session :buffer)))
+    (when (buffer-live-p buffer)
+      (when-let* ((window (get-buffer-window buffer t)))
+        (window-frame window)))))
+
 (defun etaf-md-preview--session-palette (session)
   "Return SESSION's surface palette, or nil for the named palette colors.
-Sessions created with the `auto' theme derive their surfaces from the active
-frame's faces, so panels, tables and code blocks match the user's own theme.
-A session that has not selected a palette explicitly uses the face-derived
-palette; a named palette
-returns its own color alist so the shared renderer never needs a theme name."
+Sessions created with the `auto' theme derive their surfaces from the faces of
+the frame showing them, so panels, tables and code blocks match the user's own
+theme.  A session that has not selected a palette explicitly uses the
+face-derived palette; a named palette returns its own color alist so the shared
+renderer never needs a theme name."
   (if (eq (etaf-md-preview--read session :theme-source) 'palette)
       (cdr (assq (etaf-md-preview--read session :theme) etaf-md-preview-themes))
-    (etaf-md-preview--palette-from-faces)))
+    (etaf-md-preview--palette-from-faces
+     (etaf-md-preview--display-frame session))))
 
 (defun etaf-md-preview--env (session)
   "Return the rendering environment plist for SESSION."

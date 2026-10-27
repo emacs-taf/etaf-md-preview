@@ -437,14 +437,23 @@ elements render as the full poster card with caption and activation."
 ;;; Document
 ;;; ---------------------------------------------------------------------------
 
+(defconst etaf-md-preview--measure-gutter 2
+  "Character cells kept blank on each side of the reading measure.
+A window narrower than the measure fills the column, so centering alone
+leaves no margin there and text would start on the window edge.  The gutter
+is padding, so it survives that case, and it also keeps a table's right
+border off the window's last column, where the renderer would extend its
+paint into the sub-cell remainder.")
+
 (defun etaf-md-preview--view-document (document env)
   "Return the mounted reading View of DOCUMENT in ENV.
 The document body renders through the shared `etaf-ui-markdown-view-blocks';
 the reading column uses cross-axis centering and is capped by ENV's `:width',
-so wide frames keep a readable measure and narrow frames fill.  ENV's
-`:background', when set, paints the page; without it the buffer keeps the
-Emacs theme's own background."
+so wide frames keep a readable measure and narrow frames fill down to the
+measure gutter on both sides.  ENV's `:background', when set, paints the
+page; without it the buffer keeps the Emacs theme's own background."
   (let* ((width (max 24 (or (plist-get env :width) 92)))
+         (gutter etaf-md-preview--measure-gutter)
          (background (plist-get env :background))
          (hero (etaf-md-preview--meta-node document env))
          (body (append
@@ -465,8 +474,9 @@ Emacs theme's own background."
                (list
                 (etaf-node 'column
                            (list :width 'stretch
-                                 :max-width (list 'ch width)
-                                 :padding (list (list 'lh 1) (list 'ch 0))
+                                 :max-width (list 'ch (+ width (* 2 gutter)))
+                                 :overflow 'hidden
+                                 :padding (list (list 'lh 1) (list 'ch gutter))
                                  :item-gap '(lh 0)
                                  :color (etaf-md-preview--env-color env :ink))
                            body)))))

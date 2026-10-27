@@ -57,6 +57,14 @@ spacers and stretches to the window up to the session's measure. The measure
 is the only width the application owns, so a window resize is a framework
 viewport update: the view is not rebuilt and the session does not change.
 
+The column is padding, not a margin: two cells of gutter sit on each side of
+the measure, and the column clips at its padding edge. Both follow from the
+renderer: a window that fills the measure leaves no room for centering, and
+the mount extends the last cell's background into the window's sub-cell
+remainder, so a table border on the reading edge would paint a bar across the
+gutter. Clipping is also what keeps a too-wide block inside the measure when
+the window is narrower than the minimum measure.
+
 **Inline runs are separate `text` Hosts.** Inline style is expressed as one
 `text` Host per run inside a normal `box` with `word` wrapping; Ebox composes
 the children into one wrapped flow, so the application keeps no inline layout

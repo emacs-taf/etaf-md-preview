@@ -37,9 +37,10 @@ scrolling, isearch and window splitting keep working.
   title-bar switch writes the same theme cell, so it can pin `亮` / `暗` /
   `纸` or return to `随` and the document repaints with the panel.
 - Outline navigation (`n`/`p`, `C-c j`), imenu integration, reloading (`r`), an
-  adjustable maximum reading measure (`[`/`]`) and native scrolling. A window
-  resize reflows through the framework's viewport update without rebuilding
-  the view.
+  adjustable maximum reading measure (`[`/`]`) and native scrolling. The
+  measure keeps a two-cell gutter on each side, so even a window narrower than
+  the measure starts its text off the edge. A window resize reflows through
+  the framework's viewport update without rebuilding the view.
 - Four user options: `etaf-md-preview-theme`, `etaf-md-preview-flavor`,
   `etaf-md-preview-width-min` and `etaf-md-preview-width-max`.
 

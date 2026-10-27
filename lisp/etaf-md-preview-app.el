@@ -128,12 +128,14 @@ add outline navigation, reloading, theming and closing.")
 (defun etaf-md-preview--effective-width (session)
   "Return the reading width the window actually gives SESSION.
 The session's `:width' is the maximum measure; a narrower window fills the
-available columns instead, so this reports what is on screen."
+available columns instead, so this reports what is on screen outside the
+column's side gutters."
   (let* ((buffer (plist-get session :buffer))
          (window (and (buffer-live-p buffer) (get-buffer-window buffer t)))
          (cap (etaf-md-preview--read session :width)))
     (if (window-live-p window)
-        (min cap (max 24 (- (window-body-width window) 4)))
+        (min cap (max 24 (- (window-body-width window)
+                            (* 2 etaf-md-preview--measure-gutter))))
       cap)))
 
 ;;; ---------------------------------------------------------------------------

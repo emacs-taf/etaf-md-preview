@@ -83,11 +83,21 @@ the preview follow them.
 
 The reading measure is capped and centered in the window. The session stores a
 maximum; the column stretches to the window and never exceeds it, so a narrow
-window fills the available columns. `[` and `]` adjust the maximum manually in
-both directions, and the result is clamped between `etaf-md-preview-width-min`
-and `etaf-md-preview-width-max`. A window resize reflows through the renderer's
-viewport update rather than rebuilding the document, and because the preview
-publishes into one buffer, resizing never restarts the session.
+window fills the available columns. The column keeps a two-cell gutter on each
+side outside the measure, so the text never starts or ends on the window edge
+and a table's border stays off the column where the renderer extends the last
+cell's paint across the window's sub-cell remainder. `[` and `]` adjust the
+maximum manually in both directions, and the result is clamped between
+`etaf-md-preview-width-min` and `etaf-md-preview-width-max`. A window resize
+reflows through the renderer's viewport update rather than rebuilding the
+document, and because the preview publishes into one buffer, resizing never
+restarts the session.
+
+The narrowest useful window is the minimum measure plus the two gutters, about
+44 columns. Below that a block that cannot shrink to the measure, such as a
+table whose columns must keep their words whole, is clipped at the measure
+instead of painting over the gutter; text still wraps and the page keeps its
+layout.
 
 ## Customization
 

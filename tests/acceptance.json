@@ -21,6 +21,16 @@
       "purpose": "All five callout kinds preserve explicit body line breaks and end without an extra padded row, retaining one normal inter-block blank line."
     },
     {
+      "name": "etaf-md-preview-tests-narrow-window-keeps-the-measure-gutter",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A window that fills the reading measure keeps its side gutters, and a table whose columns cannot fit is clipped at the measure instead of painting a border bar across the edge."
+    },
+    {
+      "name": "etaf-md-preview-tests-auto-palette-follows-a-theme-switch",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The face-derived palette re-derives after an Emacs theme switch, so the preview follows the new theme instead of keeping the ink and surfaces of the theme that was active when it opened."
+    },
+    {
       "name": "etaf-md-preview-tests-reading-measure-stays-centered-on-refit",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Wide and narrow viewport refits keep the capped reading measure centered at its measured pixel position."
