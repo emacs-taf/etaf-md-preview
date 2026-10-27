@@ -30,7 +30,7 @@
                      "> A quoted line for section %d.\n\n"
                      "```elisp\n(defun section-%d () %d)\n```\n\n"
                      "| name | value |\n|:--|--:|\n| a | %d |\n| b | %d |\n\n")
-             index index index index index index index index (1+ index))
+             index index index index index index index index (1+ index)))
    (number-sequence 1 etaf-md-preview-benchmark-sections)
    "\n"))
 
