@@ -13,6 +13,14 @@
 
 ### Fixed
 
+- Headings keep a color in a theme that paints its own heading color as its
+  body color (`outline-1` within 12% contrast of the body ink), which several
+  dark themes do: the palette then derives the heading color from the accent,
+  mixed toward the page background, so headings stay distinguishable without
+  competing with links.
+- The default reading measure is 96 cells instead of 110. At 110 a paragraph of
+  Chinese runs past fifty characters per line, which is a long way back for the
+  eye; the measure stays adjustable with `[` and `]`.
 - The face-derived palette follows an Emacs theme switch. It is derived from the
   faces of the frame that shows the preview and reads `etaf-appearance' inside
   the derivation, so switching from a dark to a light theme repaints the

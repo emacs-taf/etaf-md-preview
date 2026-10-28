@@ -29,9 +29,12 @@
   :type 'integer
   :group 'etaf-md-preview)
 
-(defcustom etaf-md-preview-width-max 110
+(defcustom etaf-md-preview-width-max 96
   "Widest reading measure, in character cells.
-A window wider than this measure keeps the measure and centers the column."
+A window wider than this measure keeps the measure and centers the column.
+A measure wider than this runs a long way past a comfortable line: at 110
+cells a paragraph of Chinese holds more than fifty characters per line."
+
   :type 'integer
   :group 'etaf-md-preview)
 

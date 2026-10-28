@@ -150,7 +150,7 @@
 ;; Variable: etaf-md-preview-width-min (default 40)
 ;; Narrowest reading measure in character cells.
 ;;
-;; Variable: etaf-md-preview-width-max (default 110)
+;; Variable: etaf-md-preview-width-max (default 96)
 ;; Widest reading measure in character cells; a wider window keeps this measure
 ;; and centers it.  The column keeps a two-cell gutter on each side outside the
 ;; measure, so text never starts or ends on the window edge; a window narrower

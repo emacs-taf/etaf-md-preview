@@ -109,7 +109,7 @@ decision follows the document and the frame.
 | `etaf-md-preview-theme` | `auto` | Initial palette; `auto` derives the colors from the Emacs theme's faces and paints no page background. |
 | `etaf-md-preview-flavor` | `gfm` | Default Markdown dialect when `etaf-md-preview-create` gets no `:flavor`. |
 | `etaf-md-preview-width-min` | `40` | Narrowest reading measure, in character cells. |
-| `etaf-md-preview-width-max` | `110` | Widest reading measure; a wider window keeps it and centers the column. |
+| `etaf-md-preview-width-max` | `96` | Widest reading measure; a wider window keeps it and centers the column. |
 
 ## Scripting and headless use
 

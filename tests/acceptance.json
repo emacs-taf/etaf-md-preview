@@ -11,6 +11,16 @@
   "support": [],
   "cases": [
     {
+      "name": "etaf-md-preview-tests-heading-color-separates-from-flat-themed-ink",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A theme whose outline color is its body color still renders headings in a hue derived from the accent, instead of headings that read as plain text."
+    },
+    {
+      "name": "etaf-md-preview-tests-heading-keeps-a-distinct-theme-color",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A theme whose heading color differs from its body text keeps that color, so the derivation only replaces a heading color that would read flat."
+    },
+    {
       "name": "etaf-md-preview-tests-open-prompt-defaults-to-the-relative-file",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Opening the preview interactively hands the file prompt a name relative to `default-directory', so the prompt shows the directory once instead of repeating it around the current buffer's file."

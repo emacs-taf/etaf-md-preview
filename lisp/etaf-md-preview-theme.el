@@ -134,6 +134,37 @@ resolves a usable surface."
           (apply #'format "#%02x%02x%02x" mixed))
       base)))
 
+(defun etaf-md-preview--luminance (color)
+  "Return the relative luminance of COLOR, or nil when it does not resolve.
+`color-values' answers for a named or hex color without a frame, so this works
+in batch as well as in a session."
+  (when-let* ((values (ignore-errors (color-values color))))
+    (cl-destructuring-bind (red green blue) values
+      (+ (* 0.2126 (/ red 65535.0))
+         (* 0.7152 (/ green 65535.0))
+         (* 0.0722 (/ blue 65535.0))))))
+
+(defconst etaf-md-preview--heading-contrast 1.12
+  "Smallest contrast ratio that keeps a heading color apart from the body ink.
+Several dark themes paint `outline-1' almost the body color, so honoring them
+literally renders every heading flat; below this ratio the palette derives the
+heading color from the accent instead.")
+
+(defun etaf-md-preview--heading-color (face-color ink accent background)
+  "Return the heading color for FACE-COLOR over INK, ACCENT and BACKGROUND.
+FACE-COLOR is the theme's own heading color: it is kept when its contrast with
+INK reaches `etaf-md-preview--heading-contrast'.  Otherwise the accent is mixed
+toward BACKGROUND, which keeps a hue that is neither the body text nor the
+full-strength link color."
+  (let ((face-luminance (etaf-md-preview--luminance face-color))
+        (ink-luminance (etaf-md-preview--luminance ink)))
+    (if (and face-luminance ink-luminance
+             (>= (/ (+ (max face-luminance ink-luminance) 0.05)
+                    (+ (min face-luminance ink-luminance) 0.05))
+                 etaf-md-preview--heading-contrast))
+        face-color
+      (etaf-md-preview--mix-color accent background 0.35))))
+
 (defun etaf-md-preview--palette-from-faces (&optional frame)
   "Return a palette derived from FRAME's own faces.
 Every surface is a blend of the frame's background toward its foreground or
@@ -154,8 +185,9 @@ theme that was active when it was first read."
                    (etaf-md-preview--face-color
                     'font-lock-function-name-face :foreground nil frame)
                    foreground))
-         (heading (etaf-md-preview--face-color
-                   'outline-1 :foreground foreground frame))
+         (heading (etaf-md-preview--heading-color
+                   (etaf-md-preview--face-color 'outline-1 :foreground foreground frame)
+                   foreground link background))
          (ok (etaf-md-preview--face-color 'success :foreground "#1a7f37" frame))
          (warn (etaf-md-preview--face-color 'warning :foreground "#9a6700" frame))
          (danger (etaf-md-preview--face-color 'error :foreground "#d1242f" frame))
@@ -170,8 +202,8 @@ theme that was active when it was first read."
           (cons :border (etaf-md-preview--mix-color background foreground 0.18))
           (cons :panel (etaf-md-preview--mix-color background foreground 0.06))
           (cons :panel2 (etaf-md-preview--mix-color background foreground 0.10))
-          (cons :quote-bar (etaf-md-preview--mix-color background foreground 0.25))
-          (cons :quote-bg (etaf-md-preview--mix-color background foreground 0.04))
+          (cons :quote-bar (etaf-md-preview--mix-color background foreground 0.22))
+          (cons :quote-bg (etaf-md-preview--mix-color background foreground 0.03))
           (cons :table-header (etaf-md-preview--mix-color background foreground 0.07))
           (cons :table-stripe (etaf-md-preview--mix-color background foreground 0.03))
           (cons :heading heading)

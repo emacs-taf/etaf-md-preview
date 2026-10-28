@@ -13,6 +13,7 @@
 
 (require 'ert)
 (require 'cl-lib)
+(require 'outline)
 (require 'etaf)
 (require 'etaf-md-preview)
 
@@ -299,6 +300,59 @@ table border on that edge would draw a bar across the gutter."
             (should (>= (cdr blank) margin))
             (should-not (etaf-md-preview-tests--background-at
                          (1- (line-end-position))))))))))
+
+(defun etaf-md-preview-tests--foreground-at (needle)
+  "Return the foreground color reported at the first NEEDLE, or nil."
+  (goto-char (point-min))
+  (search-forward needle)
+  (let ((face (get-text-property (match-beginning 0) 'face)))
+    (cl-some (lambda (entry)
+               (and (listp entry) (plist-get entry :foreground)))
+             (if (keywordp (car-safe face)) (list face) face))))
+
+(defmacro etaf-md-preview-tests--with-faces (faces &rest body)
+  "Run BODY with FACES set on the default and outline-1 faces.
+FACES is a plist of `:foreground', `:background' and `:outline'; every face
+attribute it changes is restored afterwards, so a scenario that paints a theme
+leaves the frame as it found it."
+  (declare (indent 1))
+  `(let ((etaf-md-preview-tests--saved
+          (list (face-attribute 'default :foreground nil t)
+                (face-attribute 'default :background nil t)
+                (face-attribute 'outline-1 :foreground nil t))))
+     (unwind-protect
+         (progn
+           (set-face-attribute 'default nil
+                               :foreground (or (plist-get ,faces :foreground) "#000000")
+                               :background (or (plist-get ,faces :background) "#ffffff"))
+           (set-face-attribute 'outline-1 nil
+                               :foreground (or (plist-get ,faces :outline) 'unspecified))
+           ,@body)
+       (cl-destructuring-bind (foreground background outline) etaf-md-preview-tests--saved
+         (when (stringp foreground) (set-face-attribute 'default nil :foreground foreground))
+         (when (stringp background) (set-face-attribute 'default nil :background background))
+         (set-face-attribute 'outline-1 nil :foreground (or outline 'unspecified))))))
+
+(ert-deftest etaf-md-preview-tests-heading-color-separates-from-flat-themed-ink ()
+  "A theme that paints its outline color as its body color gets a heading hue.
+Several dark themes do that, and honoring them literally renders every heading
+flat; the palette then derives the heading from the accent instead."
+  (etaf-md-preview-tests--with-faces
+      '(:foreground "#ffffff" :background "#263238" :outline "#eceff1")
+    (etaf-md-preview-tests--with-mount (etaf-md-preview-create :text "# Heading\n")
+      (let ((heading (etaf-md-preview-tests--foreground-at "Heading")))
+        (should heading)
+        (should-not (equal heading "#eceff1"))
+        (should-not (equal heading "#ffffff"))))))
+
+(ert-deftest etaf-md-preview-tests-heading-keeps-a-distinct-theme-color ()
+  "A theme whose heading color differs from its body text keeps that color.
+The derivation only replaces a heading color that would read as plain text."
+  (etaf-md-preview-tests--with-faces
+      '(:foreground "#383a42" :background "#fafafa" :outline "#0184bc")
+    (etaf-md-preview-tests--with-mount (etaf-md-preview-create :text "# Heading\n")
+      (should (equal "#0184bc"
+                     (etaf-md-preview-tests--foreground-at "Heading"))))))
 
 (ert-deftest etaf-md-preview-tests-auto-palette-follows-a-theme-switch ()
   "The face-derived palette follows an Emacs theme switch.
