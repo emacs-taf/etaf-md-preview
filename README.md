@@ -41,6 +41,10 @@ scrolling, isearch and window splitting keep working.
   measure keeps a two-cell gutter on each side, so even a window narrower than
   the measure starts its text off the edge. A window resize reflows through
   the framework's viewport update without rebuilding the view.
+- A preview opened from a file follows that file: saving it, or changing it on
+  disk from another program, repaints the document on its own and keeps the
+  reader in the section it was reading, so an editor and its preview sit side
+  by side. `r` still reloads on demand.
 - Four user options: `etaf-md-preview-theme`, `etaf-md-preview-flavor`,
   `etaf-md-preview-width-min` and `etaf-md-preview-width-max`.
 

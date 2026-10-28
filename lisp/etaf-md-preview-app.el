@@ -20,6 +20,7 @@
 
 (require 'cl-lib)
 (require 'subr-x)
+(require 'filenotify)
 (require 'etaf)
 (require 'etaf-ui)
 (require 'etaf-md-preview-theme)
@@ -139,6 +140,142 @@ column's side gutters."
       cap)))
 
 ;;; ---------------------------------------------------------------------------
+;;; Following the source file
+;;; ---------------------------------------------------------------------------
+
+(defconst etaf-md-preview--follow-delay 0.2
+  "Seconds to wait before a changed source repaints its preview.
+A save raises both `after-save-hook' and a file notification, and a formatter
+may write the file in several steps, so the repaint waits for the source to
+settle instead of running once per event.")
+
+(defvar etaf-md-preview--follow-sessions (make-hash-table :test #'equal)
+  "Displayed preview sessions by absolute source file name.")
+
+(defvar etaf-md-preview--follow-watches (make-hash-table :test #'equal)
+  "Change watches by absolute source file name.")
+
+(defvar etaf-md-preview--follow-timers (make-hash-table :test #'equal)
+  "Pending repaints by absolute source file name.")
+
+(defconst etaf-md-preview--follow-attempts 3
+  "Times to retry a watch while its file is missing.
+An editor that saves atomically deletes the old file before it renames the
+new one over the name, and the watch must be re-armed once the name exists
+again; each retry waits one `etaf-md-preview--follow-delay'.")
+
+(defun etaf-md-preview--follow-saved ()
+  "Repaint the preview of the file being saved, when one is open."
+  (when buffer-file-name
+    (etaf-md-preview--follow-schedule (expand-file-name buffer-file-name))))
+
+(defun etaf-md-preview--follow-watch (file)
+  "Arm, or re-arm, FILE's change watch and return its descriptor.
+Return nil when the file cannot be watched right now, for example because it
+is missing; the caller retries.  The watch follows the file's own node, so an
+atomic replace leaves it watching a node nothing writes again, and every event
+re-arms it."
+  (when-let* ((old (gethash file etaf-md-preview--follow-watches)))
+    (ignore-errors (file-notify-rm-watch old))
+    (remhash file etaf-md-preview--follow-watches))
+  (when-let* ((watch
+               (condition-case nil
+                   (file-notify-add-watch
+                    file '(change)
+                    (lambda (event)
+                      (etaf-md-preview--follow-event file event)))
+                 (file-error nil))))
+    (puthash file watch etaf-md-preview--follow-watches)
+    watch))
+
+(defun etaf-md-preview--follow-event (file event)
+  "Repaint FILE's preview for EVENT and keep its watch alive."
+  (let ((action (nth 1 event)))
+    (when (memq action '(changed created renamed))
+      (etaf-md-preview--follow-schedule file))
+    (if (memq action '(stopped deleted renamed))
+        (etaf-md-preview--follow-rearm file etaf-md-preview--follow-attempts)
+      (etaf-md-preview--follow-watch file))))
+
+(defun etaf-md-preview--follow-rearm (file attempts)
+  "Watch FILE again, retrying ATTEMPTS times while it is missing."
+  (when (gethash file etaf-md-preview--follow-sessions)
+    (unless (etaf-md-preview--follow-watch file)
+      (when (> attempts 0)
+        (run-with-timer etaf-md-preview--follow-delay nil
+                        #'etaf-md-preview--follow-rearm file (1- attempts))))))
+
+(defun etaf-md-preview--follow-register (session)
+  "Make the displayed SESSION follow its source file.
+A session created from text has no file, so it never follows anything."
+  (when-let* ((path (plist-get session :file)))
+    (let ((file (expand-file-name path)))
+      (puthash file session etaf-md-preview--follow-sessions)
+      (etaf-md-preview--follow-watch file)
+      (add-hook 'after-save-hook #'etaf-md-preview--follow-saved t))))
+
+(defun etaf-md-preview--follow-unregister (file)
+  "Stop following FILE: drop its watch, pending repaint and session."
+  (when-let* ((file (and file (expand-file-name file))))
+    (when-let* ((watch (gethash file etaf-md-preview--follow-watches)))
+      (ignore-errors (file-notify-rm-watch watch))
+      (remhash file etaf-md-preview--follow-watches))
+    (when-let* ((timer (gethash file etaf-md-preview--follow-timers)))
+      (cancel-timer timer)
+      (remhash file etaf-md-preview--follow-timers))
+    (remhash file etaf-md-preview--follow-sessions)
+    (when (zerop (hash-table-count etaf-md-preview--follow-sessions))
+      (remove-hook 'after-save-hook #'etaf-md-preview--follow-saved))))
+
+(defun etaf-md-preview--follow-schedule (file)
+  "Repaint FILE's preview once the source changes settle."
+  (when (gethash file etaf-md-preview--follow-sessions)
+    (when-let* ((pending (gethash file etaf-md-preview--follow-timers)))
+      (cancel-timer pending))
+    (puthash file
+             (run-with-timer etaf-md-preview--follow-delay nil
+                             #'etaf-md-preview--follow-repaint file)
+             etaf-md-preview--follow-timers)))
+
+(defun etaf-md-preview--follow-repaint (file)
+  "Repaint FILE's preview and keep the reader in the same section."
+  (remhash file etaf-md-preview--follow-timers)
+  (when-let* ((session (gethash file etaf-md-preview--follow-sessions))
+              (buffer (plist-get session :buffer))
+              ((buffer-live-p buffer)))
+    (let ((section (etaf-md-preview--reading-section session)))
+      (condition-case error
+          (progn
+            (etaf-md-preview-refresh session)
+            (when-let* ((runtime (etaf-runtime-for-buffer buffer)))
+              (etaf-runtime-flush runtime))
+            (etaf-md-preview--resume-section session section))
+        (etaf-md-preview-error
+         (message "Preview kept its last render: %s"
+                  (error-message-string error)))))))
+
+(defun etaf-md-preview--reading-section (session)
+  "Return the outline index of the section SESSION's buffer is showing."
+  (when (buffer-live-p (plist-get session :buffer))
+    (let ((point-now (with-current-buffer (plist-get session :buffer) (point)))
+          (section nil))
+      (dolist (cell (etaf-md-preview--heading-positions session))
+        (when (<= (cdr cell) point-now)
+          (setq section (car cell))))
+      section)))
+
+(defun etaf-md-preview--resume-section (session section)
+  "Move SESSION's buffer back to outline SECTION after a repaint."
+  (when (and section (buffer-live-p (plist-get session :buffer)))
+    (when-let* ((position (cdr (assq section
+                                    (etaf-md-preview--heading-positions session)))))
+      (with-current-buffer (plist-get session :buffer)
+        (goto-char position))
+      (when-let* ((window (get-buffer-window (plist-get session :buffer) t)))
+        (set-window-point window position)
+        (with-selected-window window (recenter 0))))))
+
+;;; ---------------------------------------------------------------------------
 ;;; Application Component and entry points
 ;;; ---------------------------------------------------------------------------
 
@@ -241,8 +378,14 @@ session without one lets the Emacs theme show through."
                        (setq measured t)
                        (plist-put session :buffer (current-buffer))
                        (etaf-md-preview--fit-width session)))
-           :on-close (lambda () (plist-put session :buffer nil)))))
+           :on-close (lambda ()
+                       (etaf-md-preview--follow-unregister (plist-get session :file))
+                       (plist-put session :buffer nil)))))
     (plist-put session :buffer buffer)
+    (etaf-md-preview--follow-register session)
+    (add-hook 'kill-buffer-hook
+              (lambda () (etaf-md-preview--follow-unregister (plist-get session :file)))
+              t t)
     (with-current-buffer buffer
       (setq-local imenu-create-index-function
                   (lambda ()

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+### Added
+
+- A preview opened from a file follows that file: saving the source, or
+  changing it on disk from another program, repaints the document after the
+  write settles and keeps the reader in the section it was reading, so an
+  editor buffer and its preview can sit side by side.  `r` still reloads on
+  demand.  A preview closed with `q` or killed stops following, so a watch and
+  a repaint never outlive the buffer that shows them.
+
 ### Changed
 
 - The preview opens as an ETAF application: its keys are declared on the

@@ -116,6 +116,11 @@
       "purpose": "Refresh re-reads the file and publishes the new outline."
     },
     {
+      "name": "etaf-md-preview-tests-saving-the-source-repaints-the-preview",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Saving a source file repaints its open preview without a manual reload and keeps the reader in the section it was reading."
+    },
+    {
       "name": "etaf-md-preview-tests-theme-changes-and-rejects-unknown",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Themes cycle in order and unknown palettes are rejected."

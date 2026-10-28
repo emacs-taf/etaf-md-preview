@@ -16,6 +16,8 @@
 ;;   (etaf-md-preview-gui-open "README.md" "150x44")  ; open at a frame size
 ;;   (etaf-md-preview-gui-status)                     ; one-line state for logs
 ;;   (etaf-md-preview-gui-keys "nt")                  ; real keys through the loop
+;;   (etaf-md-preview-gui-follow "appended by a tool")  ; write the source
+;;   (etaf-md-preview-gui-follow-report "appended by a tool" LINE) ; then wait
 ;;   (etaf-md-preview-gui-check)                      ; invariants; nil when healthy
 ;;   (etaf-md-preview-gui-close)                      ; release the preview buffer
 ;;
@@ -79,6 +81,52 @@ KEYS is a `kbd' string, so \"nt\" moves to the next heading and cycles theme."
       (with-current-buffer buffer
         (execute-kbd-macro (kbd keys)))))
   (etaf-md-preview-gui-status))
+
+(defun etaf-md-preview-gui-follow (text)
+  "Append TEXT to the probe's source on disk and return the reader's position.
+The write happens outside any buffer, the way another program saves a file, so
+a caller exercises the follow path instead of a forced reload.  This returns
+before the repaint: the repaint runs from a timer once Emacs is idle, so a
+caller waiting inside another timer or a client request would starve it.
+Return a plist of `:file' and `:line', the reader's line at the write."
+  (let ((file (and etaf-md-preview-gui--session
+                   (plist-get etaf-md-preview-gui--session :file)))
+        (buffer (and etaf-md-preview-gui--session
+                     (plist-get etaf-md-preview-gui--session :buffer))))
+    (unless file
+      (error "The probe has no file-backed preview to follow"))
+    (let ((line (and (buffer-live-p buffer)
+                     (with-current-buffer buffer (line-number-at-pos)))))
+      (with-temp-buffer
+        (insert-file-contents file)
+        (goto-char (point-max))
+        (insert "\n" text "\n")
+        (write-region (point-min) (point-max) file nil 'silent))
+      (list :file file :line line))))
+
+(defun etaf-md-preview-gui-follow-report (text &optional before)
+  "Wait for the follow repaint of TEXT and report what the preview did.
+BEFORE is the reader's line captured by `etaf-md-preview-gui-follow', which
+lets the caller see that the repaint kept the reader in its section.  Call
+this at top level: a timer cannot run the repaint while another timer waits.
+Return `:line', `:kept' (the reader stayed within three lines of BEFORE) and
+`:followed' (the new text reached the buffer)."
+  (let ((buffer (and etaf-md-preview-gui--session
+                     (plist-get etaf-md-preview-gui--session :buffer))))
+    (unless (buffer-live-p buffer)
+      (error "The probe has no preview buffer to inspect"))
+    (let ((waited 0)
+          (found nil))
+      (while (and (not found) (< waited 40))
+        (setq found (with-current-buffer buffer
+                      (string-match-p (regexp-quote text) (buffer-string))))
+        (unless found
+          (sit-for 0.1)
+          (setq waited (1+ waited))))
+      (let ((line (with-current-buffer buffer (line-number-at-pos))))
+        (list :line line
+              :kept (and before (<= (abs (- line before)) 3))
+              :followed (and found t))))))
 
 (defun etaf-md-preview-gui-check ()
   "Return preview layout problems, or nil when the frame looks healthy.
