@@ -42,9 +42,8 @@ scrolling, isearch and window splitting keep working.
   the measure starts its text off the edge. A window resize reflows through
   the framework's viewport update without rebuilding the view.
 - A preview opened from a file follows that file: saving it, or changing it on
-  disk from another program, repaints the document on its own and keeps the
-  reader in the section it was reading, so an editor and its preview sit side
-  by side. `r` still reloads on demand.
+  disk from another program, repaints the document on its own, so an editor
+  and its preview sit side by side. `r` still reloads on demand.
 - `etaf-md-preview` splits the current window, opens the
   preview beside the source and leaves the point in the source, so one command
   from a Markdown buffer sets up editing with a live preview; `q` closes the

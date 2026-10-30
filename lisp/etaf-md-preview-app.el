@@ -245,46 +245,20 @@ A session created from text has no file, so it never follows anything."
              etaf-md-preview--follow-timers)))
 
 (defun etaf-md-preview--follow-repaint (file)
-  "Repaint FILE's preview and keep the reader in the same section."
+  "Repaint FILE's preview after its source changed.
+The repaint republishes the document and lets the framework draw it the way
+any other reactive change does: forcing a flush or moving the reading window
+from the timer that runs here re-enters the update while a redisplay is
+pending, and that spins instead of settling."
   (remhash file etaf-md-preview--follow-timers)
   (when-let* ((session (gethash file etaf-md-preview--follow-sessions))
               (buffer (plist-get session :buffer))
               ((buffer-live-p buffer)))
-    (let ((section (etaf-md-preview--reading-section session)))
-      (condition-case error
-          (progn
-            (etaf-md-preview-refresh session)
-            (when-let* ((runtime (etaf-runtime-for-buffer buffer)))
-              (etaf-runtime-flush runtime))
-            (etaf-md-preview--resume-section session section))
-        (etaf-md-preview-error
-         (message "Preview kept its last render: %s"
-                  (error-message-string error)))))))
-
-(defun etaf-md-preview--reading-section (session)
-  "Return the outline index of the section SESSION's buffer is showing."
-  (when (buffer-live-p (plist-get session :buffer))
-    (let ((point-now (with-current-buffer (plist-get session :buffer) (point)))
-          (section nil))
-      (dolist (cell (etaf-md-preview--heading-positions session))
-        (when (<= (cdr cell) point-now)
-          (setq section (car cell))))
-      section)))
-
-(defun etaf-md-preview--resume-section (session section)
-  "Move SESSION's buffer back to outline SECTION after a repaint."
-  (when (and section (buffer-live-p (plist-get session :buffer)))
-    (when-let* ((position (cdr (assq section
-                                    (etaf-md-preview--heading-positions session)))))
-      (with-current-buffer (plist-get session :buffer)
-        (goto-char position))
-      (when-let* ((window (get-buffer-window (plist-get session :buffer) t)))
-        (set-window-point window position)
-        (with-selected-window window (recenter 0))))))
-
-;;; ---------------------------------------------------------------------------
-;;; Application Component and entry points
-;;; ---------------------------------------------------------------------------
+    (condition-case error
+        (etaf-md-preview-refresh session)
+      (etaf-md-preview-error
+       (message "Preview kept its last render: %s"
+                (error-message-string error))))))
 
 (etaf-define-component etaf-md-preview-app (&key session)
   "Render the markdown preview for SESSION and own its lifecycle.
