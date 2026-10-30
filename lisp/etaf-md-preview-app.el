@@ -117,10 +117,17 @@ add outline navigation, reloading, theming and closing.")
              (etaf-md-preview--effective-width session) cap)))
 
 (defun etaf-md-preview-close ()
-  "Unmount the current preview and kill its buffer."
+  "Unmount the current preview, kill its buffer and free its window.
+The current window goes away when the frame has another window to spare, so a
+preview opened beside its source closes back onto the source instead of leaving
+a second copy of it.  Signals `user-error' when the current buffer is not a
+preview."
   (interactive)
   (etaf-md-preview--current-session)
-  (etaf-app-close))
+  (let ((window (selected-window)))
+    (etaf-app-close)
+    (when (and (window-live-p window) (not (one-window-p t)))
+      (ignore-errors (delete-window window)))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Window fitting
@@ -351,6 +358,31 @@ themselves."
       (if (and existing (etaf-app-state existing))
           (switch-to-buffer existing)
         (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
+
+;;;###autoload
+(defun etaf-md-preview-open-side-by-side (&optional source)
+  "Open SOURCE's preview in a window beside the current one.
+SOURCE is a file path.  Interactively it is the current buffer's Markdown
+file, and a buffer that visits no Markdown file prompts for one.  The source
+buffer keeps the selected window and the point, so an edit followed by a save
+reaches the preview without leaving the text.  An existing preview of the same
+file is shown instead of rendered twice; `etaf-md-preview-close' gives the
+window back."
+  (interactive
+   (list (or (and buffer-file-name
+                  (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'"
+                                  buffer-file-name)
+                  (expand-file-name buffer-file-name))
+             (expand-file-name
+              (read-file-name "Markdown file: " nil nil t
+                              (and buffer-file-name
+                                   (file-relative-name buffer-file-name
+                                                       default-directory)))))))
+  (let ((origin (selected-window))
+        (file (expand-file-name source)))
+    (select-window (split-window-right))
+    (prog1 (etaf-md-preview-open file)
+      (select-window origin))))
 
 (defun etaf-md-preview--buffer-name-for-session (session)
   "Return the preview buffer name for SESSION."

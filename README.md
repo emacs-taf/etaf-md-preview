@@ -45,6 +45,10 @@ scrolling, isearch and window splitting keep working.
   disk from another program, repaints the document on its own and keeps the
   reader in the section it was reading, so an editor and its preview sit side
   by side. `r` still reloads on demand.
+- `etaf-md-preview-open-side-by-side` splits the current window, opens the
+  preview beside the source and leaves the point in the source, so one command
+  from a Markdown buffer sets up editing with a live preview; `q` closes the
+  preview and gives the window back.
 - Four user options: `etaf-md-preview-theme`, `etaf-md-preview-flavor`,
   `etaf-md-preview-width-min` and `etaf-md-preview-width-max`.
 

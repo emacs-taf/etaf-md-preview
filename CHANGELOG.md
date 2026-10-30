@@ -4,6 +4,9 @@
 
 ### Added
 
+- `etaf-md-preview-open-side-by-side` opens the preview in a window beside the
+  source and keeps the point in the source text, so one command from a
+  Markdown buffer sets up editing with a live preview.
 - A preview opened from a file follows that file: saving the source, or
   changing it on disk from another program, repaints the document after the
   write settles and keeps the reader in the section it was reading, so an
@@ -12,6 +15,10 @@
   a repaint never outlive the buffer that shows them.
 
 ### Changed
+
+- `etaf-md-preview-close` frees the preview's window when the frame has another
+  window, so a preview opened beside its source closes back onto the source
+  instead of leaving a second window on the same file.
 
 - The preview opens as an ETAF application: its keys are declared on the
   root Host, so `n`, `p` and `q` reach heading navigation and closing

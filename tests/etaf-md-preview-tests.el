@@ -522,6 +522,37 @@ the system opener instead."
                          '("Second"))))
       (delete-file file))))
 
+(ert-deftest etaf-md-preview-tests-open-side-by-side-keeps-the-source-window ()
+  "The side-by-side command opens the preview next to the source.
+The source buffer keeps the selected window, so an edit and its save need no
+window switching, and closing the preview gives the window back."
+  (let* ((file (make-temp-file "etaf-md-preview-beside-" nil ".md"))
+         (source nil))
+    (unwind-protect
+        (progn
+          (with-temp-file file (insert "# Beside\n\nbody text\n"))
+          (setq source (find-file-noselect file))
+          (switch-to-buffer source)
+          (delete-other-windows)
+          (etaf-md-preview-open-side-by-side file)
+          (let ((preview-window
+                 (cl-find-if (lambda (window)
+                               (string-prefix-p "*ETAF Markdown:"
+                                                (buffer-name (window-buffer window))))
+                             (window-list))))
+            (should (= 2 (length (window-list))))
+            (should (eq (window-buffer (selected-window)) source))
+            (should preview-window)
+            (select-window preview-window)
+            (etaf-md-preview-close)
+            (should (= 1 (length (window-list))))))
+      (dolist (buffer (buffer-list))
+        (when (and (string-prefix-p "*ETAF Markdown:" (buffer-name buffer))
+                   (buffer-live-p buffer))
+          (kill-buffer buffer)))
+      (when (buffer-live-p source) (kill-buffer source))
+      (delete-file file))))
+
 (ert-deftest etaf-md-preview-tests-saving-the-source-repaints-the-preview ()
   "Saving a source file repaints its open preview without a manual reload.
 The reader keeps the section it was reading instead of jumping to the top."

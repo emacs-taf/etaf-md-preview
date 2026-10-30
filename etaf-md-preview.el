@@ -59,10 +59,22 @@
 ;; releases the session's Runtime and its watch, so reopening the same file
 ;; renders a fresh preview.
 ;;
+;; Function: etaf-md-preview-open-side-by-side (&optional source)
+;;;###autoload (autoload 'etaf-md-preview-open-side-by-side "etaf-md-preview" nil t)
+;; Open SOURCE's preview in a window beside the current one.
+;; SOURCE is a file path; interactively it is the current buffer's markdown
+;; file, and a buffer that visits no markdown file prompts for one.  The source
+;; buffer keeps the selected window and the point, so an edit followed by a
+;; save reaches the preview without leaving the text.  An existing preview of
+;; the same file is shown instead of rendered twice, and
+;; `etaf-md-preview-close' gives the window back.
+;;
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)
-;; Unmount the current preview buffer and kill it.
-;; Signals `user-error' when the current buffer is not a preview.
+;; Unmount the current preview buffer, kill it and free its window.
+;; The current window goes away when the frame has another window, so a preview
+;; opened beside its source closes back onto the source.  Signals `user-error'
+;; when the current buffer is not a preview.
 ;;
 ;; Function: etaf-md-preview-view (&optional session)
 ;;;###autoload (autoload 'etaf-md-preview-view "etaf-md-preview" nil t)
