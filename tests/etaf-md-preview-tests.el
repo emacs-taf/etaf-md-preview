@@ -543,6 +543,9 @@ window switching, and closing the preview gives the window back."
             (should (= 2 (length (window-list))))
             (should (eq (window-buffer (selected-window)) source))
             (should preview-window)
+            ;; source left of the preview, whatever the layout was
+            (should (< (car (window-edges (selected-window)))
+                       (car (window-edges preview-window))))
             (select-window preview-window)
             (etaf-md-preview-close)
             (should (= 1 (length (window-list))))))

@@ -361,13 +361,11 @@ themselves."
 
 ;;;###autoload
 (defun etaf-md-preview (&optional source)
-  "Open SOURCE's preview in a window beside the current one.
+  "Show SOURCE's preview beside its source: source on the left, preview right.
 SOURCE is a file path.  Interactively it is the current buffer's Markdown
-file, and a buffer that visits no Markdown file prompts for one.  The source
-buffer keeps the selected window and the point, so an edit followed by a save
-reaches the preview without leaving the text.  An existing preview of the same
-file is shown instead of rendered twice; `etaf-md-preview-close' gives the
-window back."
+file, and a buffer that visits no Markdown file prompts for one.  Any previous
+window layout gives way to those two panes, the point stays in the source, and
+`etaf-md-preview-close' gives the layout back to the source alone."
   (interactive
    (list (or (and buffer-file-name
                   (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'"
@@ -378,11 +376,14 @@ window back."
                               (and buffer-file-name
                                    (file-relative-name buffer-file-name
                                                        default-directory)))))))
-  (let ((origin (selected-window))
-        (file (expand-file-name source)))
+  (let* ((file (expand-file-name source))
+         (buffer (or (get-file-buffer file) (find-file-noselect file))))
+    (delete-other-windows)
+    (switch-to-buffer buffer)
     (select-window (split-window-right))
-    (prog1 (etaf-md-preview-open file)
-      (select-window origin))))
+    (etaf-md-preview-open file)
+    (when-let* ((window (get-buffer-window buffer t)))
+      (select-window window))))
 
 (defun etaf-md-preview--buffer-name-for-session (session)
   "Return the preview buffer name for SESSION."
