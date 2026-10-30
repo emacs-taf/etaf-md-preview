@@ -41,6 +41,16 @@
 ;; Return capability facts for reading Markdown.  The shape matches
 ;; `etaf-install-doctor'; ffmpeg is optional and only affects video cards and
 ;; terminal image conversion.
+;; Function: etaf-md-preview (&optional source)
+;;;###autoload (autoload 'etaf-md-preview "etaf-md-preview" nil t)
+;; Open SOURCE's preview in a window beside the current one.
+;; SOURCE is a file path; interactively it is the current buffer's markdown
+;; file, and a buffer that visits no markdown file prompts for one.  The source
+;; buffer keeps the selected window and the point, so an edit followed by a
+;; save reaches the preview without leaving the text.  An existing preview of
+;; the same file is shown instead of rendered twice, and
+;; `etaf-md-preview-close' gives the window back.
+;;
 ;; Function: etaf-md-preview-open (&optional source)
 ;;;###autoload (autoload 'etaf-md-preview-open "etaf-md-preview" nil t)
 ;; Mount a markdown preview and return its buffer.
@@ -58,16 +68,6 @@
 ;; and keeps the reader in the section it was reading.  Closing the buffer
 ;; releases the session's Runtime and its watch, so reopening the same file
 ;; renders a fresh preview.
-;;
-;; Function: etaf-md-preview-open-side-by-side (&optional source)
-;;;###autoload (autoload 'etaf-md-preview-open-side-by-side "etaf-md-preview" nil t)
-;; Open SOURCE's preview in a window beside the current one.
-;; SOURCE is a file path; interactively it is the current buffer's markdown
-;; file, and a buffer that visits no markdown file prompts for one.  The source
-;; buffer keeps the selected window and the point, so an edit followed by a
-;; save reaches the preview without leaving the text.  An existing preview of
-;; the same file is shown instead of rendered twice, and
-;; `etaf-md-preview-close' gives the window back.
 ;;
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)

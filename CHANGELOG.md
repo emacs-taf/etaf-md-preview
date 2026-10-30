@@ -4,7 +4,7 @@
 
 ### Added
 
-- `etaf-md-preview-open-side-by-side` opens the preview in a window beside the
+- `etaf-md-preview` opens the preview in a window beside the
   source and keeps the point in the source text, so one command from a
   Markdown buffer sets up editing with a live preview.
 - A preview opened from a file follows that file: saving the source, or

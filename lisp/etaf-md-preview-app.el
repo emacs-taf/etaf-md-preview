@@ -360,7 +360,7 @@ themselves."
         (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
 
 ;;;###autoload
-(defun etaf-md-preview-open-side-by-side (&optional source)
+(defun etaf-md-preview (&optional source)
   "Open SOURCE's preview in a window beside the current one.
 SOURCE is a file path.  Interactively it is the current buffer's Markdown
 file, and a buffer that visits no Markdown file prompts for one.  The source
