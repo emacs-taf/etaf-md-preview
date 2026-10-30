@@ -196,13 +196,16 @@ re-arms it."
     watch))
 
 (defun etaf-md-preview--follow-event (file event)
-  "Repaint FILE's preview for EVENT and keep its watch alive."
+  "Repaint FILE's preview for EVENT, and re-arm the watch only when it died.
+A watch is re-armed for `stopped' and `deleted' alone: an editor that saves by
+replacing the file takes the watched node away, so the name has to be watched
+again.  Re-arming on every event instead re-adds a watch from inside its own
+callback, and the backend reports the same write again, which never settles."
   (let ((action (nth 1 event)))
     (when (memq action '(changed created renamed))
       (etaf-md-preview--follow-schedule file))
-    (if (memq action '(stopped deleted renamed))
-        (etaf-md-preview--follow-rearm file etaf-md-preview--follow-attempts)
-      (etaf-md-preview--follow-watch file))))
+    (when (memq action '(stopped deleted))
+      (etaf-md-preview--follow-rearm file etaf-md-preview--follow-attempts))))
 
 (defun etaf-md-preview--follow-rearm (file attempts)
   "Watch FILE again, retrying ATTEMPTS times while it is missing."
