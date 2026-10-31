@@ -66,9 +66,11 @@
 ;; A preview opened from a file follows it: an unsaved edit in its buffer
 ;; repaints the document once the typing pauses, and saving the source or
 ;; changing it on disk from another program repaints it after the write
-;; settles.  Closing the buffer releases the session's Runtime, its watch and
-;; the buffer's change hook, so reopening the same file renders a fresh
-;; preview.
+;; settles.  Each top-level block is its own Component, published under a key
+;; that names the block's type and source, so a repaint renders the block that
+;; changed and leaves the others' output and instances alone.  Closing the
+;; buffer releases the session's Runtime, its watch, the buffer's change hook,
+;; so reopening the same file renders a fresh preview.
 ;;
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)

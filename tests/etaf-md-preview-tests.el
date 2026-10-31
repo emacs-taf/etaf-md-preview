@@ -619,6 +619,62 @@ following the buffer, so a later edit cannot bring it back."
         (kill-buffer source))
       (delete-file file))))
 
+(ert-deftest etaf-md-preview-tests-one-edit-repaints-one-block ()
+  "One edited paragraph repaints that paragraph, not the document.
+Every top-level block is its own Component, so a publish hands the runtime the
+published blocks it already has.  The edited block's lines are the whole buffer
+patch, and the paragraphs far from the edit keep their text byte for byte."
+  (let* ((file (make-temp-file "etaf-md-preview-blocks-" nil ".md"))
+         (source nil)
+         (preview nil))
+    (unwind-protect
+        (progn
+          (with-temp-file file
+            (insert "# Blocks\n\n")
+            (dotimes (index 40)
+              (insert (format "第 %d 段：一段用来测量块级重画的正文。\n\n" index))))
+          (setq source (find-file-noselect file))
+          (setq preview (etaf-md-preview-open file))
+          (let ((before (with-current-buffer preview
+                          (substring-no-properties (buffer-string)))))
+            (should (string-match-p "第 20 段" before))
+            (with-current-buffer source
+              (goto-char (point-min))
+              (search-forward "第 20 段")
+              (let ((start (line-beginning-position)))
+                (goto-char start)
+                (delete-region start (line-end-position))
+                (insert "第 20 段：这一段刚刚被改写。")))
+            (sit-for 0.5)
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (let* ((after (with-current-buffer preview
+                            (string-match-p "这一段刚刚被改写。"
+                                            (buffer-string))))
+                   (report (with-current-buffer preview
+                             (etaf-runtime-update-report))))
+              (should after)
+              (should (eq 'lines (plist-get report :strategy)))
+              (should (<= (plist-get report :edits) 2))
+              (should (<= (plist-get report :lines) 4))
+              ;; The published patch covers few lines while the document is
+              ;; long, so the flush is one block rather than a rewrite.
+              (should (< (plist-get report :lines)
+                         (/ (with-current-buffer preview
+                              (count-lines (point-min) (point-max)))
+                            4)))
+              ;; Text far from the edit is untouched, not merely re-rendered.
+              (should (with-current-buffer preview
+                        (string-match-p "第 0 段：一段用来测量块级重画的正文。"
+                                        (buffer-string))))
+              (should (with-current-buffer preview
+                        (string-match-p "第 39 段：一段用来测量块级重画的正文。"
+                                        (buffer-string)))))))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
+
 (ert-deftest etaf-md-preview-tests-theme-changes-and-rejects-unknown ()
   "Themes cycle in order and unknown palettes are rejected."
   (let ((session (etaf-md-preview-create :text "# x\n" :theme 'dark)))

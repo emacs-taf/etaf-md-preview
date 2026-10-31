@@ -340,6 +340,7 @@ whole preview without a remount."
                             :modes etaf-md-preview--surface-modes)))
   :render
   (etaf-md-preview--view-document
+   preview
    (etaf-value document)
    (etaf-md-preview--env preview)))
 

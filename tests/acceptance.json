@@ -194,6 +194,11 @@
       "name": "etaf-md-preview-tests-palette-paints-the-canvas",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Choosing each palette paints the cells the page does not cover with that palette's page background."
+    },
+    {
+      "name": "etaf-md-preview-tests-one-edit-repaints-one-block",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "An unsaved edit in the source buffer repaints the block it changed: the published buffer patch covers that block's lines while the rest of a long document keeps its text, because every top-level block is published as its own Component."
     }
   ]
 }

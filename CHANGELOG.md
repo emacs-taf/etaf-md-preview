@@ -19,6 +19,12 @@
 
 ### Changed
 
+- Following an edit repaints one block instead of the document.  A publish
+  keeps each unchanged block's published entry and Component call, so typing
+  in a paragraph renders that paragraph alone: in an 800-block document a
+  one-paragraph edit dropped from 27 ms to 16 ms, and its non-parsing part
+  dropped from 14 ms to 1.4 ms.
+
 - `etaf-md-preview-close` frees the preview's window when the frame has another
   window, so a preview opened beside its source closes back onto the source
   instead of leaving a second window on the same file.

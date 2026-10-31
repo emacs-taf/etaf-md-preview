@@ -98,6 +98,76 @@ own error type at its boundary."
 ;;; Session
 ;;; ---------------------------------------------------------------------------
 
+(defun etaf-md-preview--block-source (block text)
+  "Return BLOCK's own source slice in TEXT, or nil without a range."
+  (let ((begin (plist-get block :begin))
+        (end (plist-get block :end)))
+    (and (integerp begin) (integerp end) (<= 0 begin end (length text))
+         (substring text begin end))))
+
+(defun etaf-md-preview--rendered-block (block)
+  "Return BLOCK without the source range it carries.
+A block's `:begin' and `:end' move when text above it changes, while the
+block displays the same content; comparing what a block displays keeps its
+published entry reusable across such an edit."
+  (if (or (plist-member block :begin) (plist-member block :end))
+      (let ((copy (copy-sequence block)))
+        (cl-remf copy :end)
+        (cl-remf copy :begin)
+        copy)
+    block))
+
+(defun etaf-md-preview--block-entries (session document text published)
+  "Return DOCUMENT's top-level blocks as keyed publishing entries.
+An entry is `(:key KEY :block BLOCK :view CALL)'.  KEY names the block's type
+and a digest of the block's own source, plus an occurrence number so two
+identical blocks stay distinct.  A block's source, not its position, is its
+identity: a block inserted or removed above it leaves every unchanged block's
+key, and therefore its Component instance, alone.
+
+PUBLISHED maps the previous publish's keys to their entries.  A block whose
+source and parsed content both survive unchanged keeps its published entry,
+CALL included, so its instance keeps its Scope, Hosts and video handles, and
+the list costs one comparison for it instead of a new call."
+  (let ((counts (make-hash-table :test #'equal))
+        (entries nil))
+    (dolist (block (plist-get document :children))
+      (let* ((digest (concat (or (and (plist-get block :type)
+                                      (symbol-name (plist-get block :type)))
+                                 "block")
+                             ":"
+                             (secure-hash
+                              'sha1
+                              (or (etaf-md-preview--block-source block text) ""))))
+             (occurrence (1+ (gethash digest counts 0)))
+             (key (if (= 1 occurrence) digest (format "%s#%d" digest occurrence)))
+             (old (and published (gethash key published))))
+        (puthash digest occurrence counts)
+        (push (if (and old (equal (etaf-md-preview--rendered-block
+                                   (plist-get old :block))
+                                  (etaf-md-preview--rendered-block block)))
+                  old
+                (list :key key :block block
+                      :view (etaf-md-preview--block-view session key block)))
+              entries)))
+    (nreverse entries)))
+
+(defun etaf-md-preview--published-table (entries)
+  "Return ENTRIES as a table from each entry's key to the entry."
+  (let ((table (make-hash-table :test #'equal)))
+    (dolist (entry entries) (puthash (plist-get entry :key) entry table))
+    table))
+
+(defun etaf-md-preview--keyed-document (session document contents published)
+  "Return (KEYED . TABLE) for DOCUMENT parsed from CONTENTS.
+KEYED is DOCUMENT with its top-level blocks replaced by publishing entries;
+TABLE maps each entry's key to the entry, to be published with the document
+and passed back as PUBLISHED by the next parse."
+  (let ((entries (etaf-md-preview--block-entries
+                  session document contents published)))
+    (cons (plist-put (copy-sequence document) :children entries)
+          (etaf-md-preview--published-table entries))))
+
 (cl-defun etaf-md-preview-create (&key file text title theme flavor)
   "Create a headless preview session and return it.
 FILE names a markdown document to read; TEXT supplies the document directly
@@ -114,37 +184,50 @@ plist may toggle individual extensions."
                          (t (signal 'etaf-md-preview-error
                                     '("etaf-md-preview-create needs :file or :text")))))
          (flavor (or flavor etaf-md-preview-flavor))
-         (document (etaf-md-preview--parse contents flavor))
          (requested (or theme etaf-md-preview-theme))
          (auto (eq requested 'auto))
-         (palette (if auto (etaf-md-preview-auto-theme) requested)))
-    (list :file file
-          :text (unless file contents)
-          :flavor flavor
-          :features (plist-get document :features)
-          :dir (if file (file-name-directory file) default-directory)
-          :document (etaf-ref document :name 'etaf-md-preview-document)
-          :title (etaf-ref (or title
-                               (plist-get document :title)
-                               (and file (file-name-nondirectory file))
-                               "Markdown")
-                          :name 'etaf-md-preview-title)
-          :theme (etaf-ref palette :name 'etaf-md-preview-theme)
-          ;; `auto' derives its surface palette from the active frame's faces
-          ;; and paints no page background; a named palette paints its page.
-          :theme-source (etaf-ref (if auto 'frame 'palette)
-                                  :name 'etaf-md-preview-theme-source)
-          :theme-mode (etaf-ref requested :name 'etaf-md-preview-theme-mode)
-          :width (etaf-ref 92 :name 'etaf-md-preview-width)
-          :error (etaf-ref nil :name 'etaf-md-preview-error-text)
-          :buffer nil
-          ;; Cards whose video plays inline; written by activation and read
-          ;; while rendering so a press repaints exactly the video cards.
-          :video-active (etaf-ref nil :name 'etaf-md-preview-video-active)
-          ;; One stable native-playback handle per card key so a repaint
-          ;; re-registers the same handle instead of invalidating the card's
-          ;; activation closure.
-          :video-handles (make-hash-table :test #'equal))))
+         (palette (if auto (etaf-md-preview-auto-theme) requested))
+         ;; Every field exists before the first parse, because a published
+         ;; block call refers to this session and later writes must stay in
+         ;; place rather than build a second plist.
+         (session (list :file file
+                        :text (unless file contents)
+                        :flavor flavor
+                        :features nil
+                        :dir (if file (file-name-directory file)
+                               default-directory)
+                        :document (etaf-ref nil :name 'etaf-md-preview-document)
+                        ;; Publishing entries of the last parse, keyed by block
+                        ;; identity; an unchanged block keeps its entry.
+                        :published nil
+                        ;; The rendering environment shared by the blocks of
+                        ;; one appearance.
+                        :env-cache nil
+                        :title (etaf-ref (or title
+                                             (and file
+                                                  (file-name-nondirectory file))
+                                             "Markdown")
+                                        :name 'etaf-md-preview-title)
+                        :theme (etaf-ref palette :name 'etaf-md-preview-theme)
+                        ;; `auto' derives its surface palette from the active
+                        ;; frame's faces and paints no page background; a named
+                        ;; palette paints its page.
+                        :theme-source (etaf-ref (if auto 'frame 'palette)
+                                                :name 'etaf-md-preview-theme-source)
+                        :theme-mode (etaf-ref requested :name 'etaf-md-preview-theme-mode)
+                        :width (etaf-ref 92 :name 'etaf-md-preview-width)
+                        :error (etaf-ref nil :name 'etaf-md-preview-error-text)
+                        :buffer nil
+                        ;; Cards whose video plays inline; written by
+                        ;; activation and read while rendering so a press
+                        ;; repaints exactly the video cards.
+                        :video-active (etaf-ref nil :name 'etaf-md-preview-video-active)
+                        ;; One stable native-playback handle per card key so a
+                        ;; repaint re-registers the same handle instead of
+                        ;; invalidating the card's activation closure.
+                        :video-handles (make-hash-table :test #'equal))))
+    (etaf-md-preview--install session contents title)
+    session))
 
 (defun etaf-md-preview--video-card (session url occurrence)
   "Return (KEY . HANDLE) for URL's OCCURRENCE in SESSION.
@@ -182,20 +265,37 @@ page background, and nil when it leaves the Emacs theme's background."
           :footnotes (mapcar (lambda (footnote) (plist-get footnote :label))
                              (plist-get document :footnotes)))))
 
-(defun etaf-md-preview--publish (session contents)
-  "Publish CONTENTS as SESSION's document and return SESSION.
-The parser and the title fallback are shared by every refresh path: reading
-the file again, following a save, and following an edit that was not saved."
-  (let ((document (etaf-md-preview--parse contents (plist-get session :flavor))))
+(defun etaf-md-preview--install (session contents &optional title)
+  "Parse CONTENTS and publish it as SESSION's document; return the document.
+TITLE, when given, names the document instead of its own front matter or file.
+The parser and the title fallback are shared by the first parse and every
+refresh path: reading the file again, following a save, and following an edit
+that was not saved.  Each top-level block keeps the publishing entry it had
+while its source and parsed content survive, so one edited block repaints
+itself and every other block keeps its instance."
+  (let* ((keyed (etaf-md-preview--keyed-document
+                 session
+                 (etaf-md-preview--parse contents (plist-get session :flavor))
+                 contents
+                 (plist-get session :published)))
+         (document (car keyed)))
     (etaf-batch
       (etaf-set-value (etaf-md-preview--ref session :document) document)
       (etaf-set-value (etaf-md-preview--ref session :title)
-                      (or (plist-get document :title)
+                      (or title
+                          (plist-get document :title)
                           (and (plist-get session :file)
                                (file-name-nondirectory (plist-get session :file)))
                           "Markdown"))
       (etaf-set-value (etaf-md-preview--ref session :error) nil))
-    session))
+    (plist-put session :features (plist-get document :features))
+    (plist-put session :published (cdr keyed))
+    document))
+
+(defun etaf-md-preview--publish (session contents)
+  "Publish CONTENTS as SESSION's document and return SESSION."
+  (etaf-md-preview--install session contents)
+  session)
 
 (defun etaf-md-preview-refresh (session)
   "Re-read and re-parse SESSION's document.
@@ -423,8 +523,39 @@ renderer never needs a theme name."
     (etaf-md-preview--palette-from-faces
      (etaf-md-preview--display-frame session))))
 
-(defun etaf-md-preview--env (session)
-  "Return the rendering environment plist for SESSION."
+(defun etaf-md-preview--frame-surface (frame)
+  "Return FRAME's default foreground and background.
+The face-derived palette follows these two faces, so a theme switch changes
+them and the shared environment is rebuilt instead of keeping the previous
+palette.  A session shown in no window derives its palette from the selected
+frame, so FRAME nil reads that frame."
+  (if frame
+      (cons (face-attribute 'default :foreground frame)
+            (face-attribute 'default :background frame))
+    (cons (face-attribute 'default :foreground)
+          (face-attribute 'default :background))))
+
+(defun etaf-md-preview--env-inputs (session)
+  "Return the values SESSION's rendering environment is built from.
+Every value the environment prints is read here, once.  Reading them is what
+makes the shared environment follow a palette, width or theme change, so a new
+input belongs both in this list and in `etaf-md-preview--build-env'.  A
+face-derived palette also reads the appearance, which is what makes a block
+re-render after a theme switch instead of keeping the faces it first read."
+  (let* ((source (etaf-md-preview--read session :theme-source))
+         (face-derived (not (eq source 'palette)))
+         (frame (etaf-md-preview--display-frame session)))
+    (list :theme (etaf-md-preview--read session :theme)
+          :source source
+          :width (etaf-md-preview--read session :width)
+          :background (etaf-md-preview--page-background session)
+          :surface (and face-derived (etaf-md-preview--frame-surface frame))
+          :appearance (and face-derived (etaf-appearance))
+          :dir (plist-get session :dir)
+          :features (plist-get session :features))))
+
+(defun etaf-md-preview--build-env (session)
+  "Build SESSION's rendering environment from its current inputs."
   (list :theme (etaf-md-preview--read session :theme)
         :palette (etaf-md-preview--session-palette session)
         :width (etaf-md-preview--read session :width)
@@ -436,11 +567,6 @@ renderer never needs a theme name."
         :open-file #'etaf-md-preview--open-file
         :render-media #'etaf-md-preview--render-media
         :alert-labels etaf-md-preview--alert-labels
-        :video-card
-        (let ((occurrences (make-hash-table :test #'equal)))
-          (lambda (url)
-            (etaf-md-preview--video-card
-             session url (cl-incf (gethash url occurrences 0)))))
         :video-active-p
         (lambda (key)
           (member key (etaf-md-preview--read session :video-active)))
@@ -450,6 +576,32 @@ renderer never needs a theme name."
            (etaf-md-preview--ref session :video-active)
            (cons key (etaf-md-preview--read session :video-active))))
         :footnote-jump (lambda (label) (etaf-md-preview--jump-footnote session label))))
+
+(defun etaf-md-preview--env (session)
+  "Return SESSION's rendering environment, reused until one of its inputs changes.
+A block Component reads this plist in its own render, so its colors and
+measure follow the session; a publish that changes no input hands every
+retained block the same environment object, which keeps its props unchanged."
+  (let ((inputs (etaf-md-preview--env-inputs session)))
+    (let ((cached (plist-get session :env-cache)))
+      (if (equal (car cached) inputs)
+          (cdr cached)
+        (let ((env (etaf-md-preview--build-env session)))
+          (plist-put session :env-cache (cons inputs env))
+          env)))))
+
+(defun etaf-md-preview--card-env (session env scope)
+  "Return ENV with video card identities for one render pass of SCOPE.
+SCOPE names the pass, so two cards of one source stay distinct while a card
+keeps its key across repaints of the same block.  ENV is shared between
+publishes, so the occurrence counter cannot live in it."
+  (let ((occurrences (make-hash-table :test #'equal)))
+    (plist-put (copy-sequence env) :video-card
+               (lambda (url)
+                 (etaf-md-preview--video-card
+                  session url
+                  (list scope (cl-incf (gethash url occurrences 0))))))))
+
 
 (provide 'etaf-md-preview-model)
 ;;; etaf-md-preview-model.el ends here

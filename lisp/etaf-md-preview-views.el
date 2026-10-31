@@ -420,6 +420,39 @@ as a bordered placeholder that opens in the browser."
 ;;; Block rendering
 ;;; ---------------------------------------------------------------------------
 
+(declare-function etaf-md-preview--env "etaf-md-preview-model" (session))
+(declare-function etaf-md-preview--card-env "etaf-md-preview-model" (session env scope))
+
+(etaf-define-component etaf-md-preview-block (&key session identity block)
+  "Render one published markdown BLOCK of SESSION under IDENTITY.
+The Component owns one block's hosts, and reads the session's environment in
+its own render.  Publishing another block, or a new value for this one,
+therefore replaces only the changed block's output: a block whose published
+call is unchanged never renders again, so its Scope, hosts and video handles
+stay."
+  :render
+  (let ((env (etaf-md-preview--card-env session
+                                        (etaf-md-preview--env session)
+                                        identity)))
+    (etaf-ui-markdown-view-block block env)))
+
+(defun etaf-md-preview--block-view (session key block)
+  "Return the keyed Component call that renders BLOCK of SESSION under KEY.
+A published block keeps this call, so re-rendering the list hands the runtime
+the unchanged value and costs one comparison per retained block."
+  (etaf-node 'etaf-md-preview-block
+             (list :key key :session session :identity key :block block)
+             nil))
+
+(defun etaf-md-preview--view-blocks (entries)
+  "Return published ENTRIES as one keyed block Component each.
+The list separates the blocks that render with one blank line through its
+own item gap: a block that renders nothing contributes no child and so adds
+no gap."
+  (etaf-node 'column
+             (list :width 'stretch :item-gap '(lh 1))
+             (mapcar (lambda (entry) (plist-get entry :view)) entries)))
+
 ;;; ---------------------------------------------------------------------------
 ;;; Media rendering
 ;;; ---------------------------------------------------------------------------
@@ -437,6 +470,7 @@ elements render as the full poster card with caption and activation."
 ;;; Document
 ;;; ---------------------------------------------------------------------------
 
+
 (defconst etaf-md-preview--measure-gutter 2
   "Character cells kept blank on each side of the reading measure.
 A window narrower than the measure fills the column, so centering alone
@@ -445,26 +479,29 @@ is padding, so it survives that case, and it also keeps a table's right
 border off the window's last column, where the renderer would extend its
 paint into the sub-cell remainder.")
 
-(defun etaf-md-preview--view-document (document env)
-  "Return the mounted reading View of DOCUMENT in ENV.
-The document body renders through the shared `etaf-ui-markdown-view-blocks';
-the reading column uses cross-axis centering and is capped by ENV's `:width',
-so wide frames keep a readable measure and narrow frames fill down to the
-measure gutter on both sides.  ENV's `:background', when set, paints the
-page; without it the buffer keeps the Emacs theme's own background."
+(defun etaf-md-preview--view-document (session document env)
+  "Return the reading View of DOCUMENT, shown by SESSION, rendered in ENV.
+The body is one keyed Component per published block, so a publish that changes
+one block repaints that block instead of the document.  The reading column
+uses cross-axis centering and is capped by ENV's `:width', so wide frames keep
+a readable measure and narrow frames fill down to the measure gutter on both
+sides.  ENV's `:background', when set, paints the page; without it the buffer
+keeps the Emacs theme's own background."
   (let* ((width (max 24 (or (plist-get env :width) 92)))
          (gutter etaf-md-preview--measure-gutter)
          (background (plist-get env :background))
          (hero (etaf-md-preview--meta-node document env))
          (body (append
                 (when hero (list hero (etaf-md-preview--spacer)))
-                (etaf-ui-markdown-view-blocks (plist-get document :children) env)
+                (list (etaf-md-preview--view-blocks
+                       (plist-get document :children)))
                 (when-let* ((footnotes (plist-get document :footnotes)))
                   (append
                    (list (etaf-md-preview--spacer)
                          (etaf-md-preview--divider "脚注")
                          (etaf-md-preview--spacer))
-                   (etaf-ui-markdown-view-blocks footnotes env))))))
+                   (etaf-ui-markdown-view-blocks
+                    footnotes (etaf-md-preview--card-env session env 'footnotes)))))))
     (etaf-node 'column
                (append (list :width '(vw 100) :cross-align 'center
                              :aria-label "Markdown 预览"

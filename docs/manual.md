@@ -99,6 +99,16 @@ table whose columns must keep their words whole, is clipped at the measure
 instead of painting over the gutter; text still wraps and the page keeps its
 layout.
 
+## Following the source
+
+An opened preview follows its source buffer: typing repaints the document
+about 0.2 s after the keys stop, and a save or an outside write repaints it
+after the write settles. Each top-level block is published as its own
+Component, keyed by its type and source text, so a repaint renders the block
+that changed and keeps every other block's rendered output, video handles and
+reading position. Inserting or removing a block re-renders the blocks after
+it, because their position changed; typing inside a block never does.
+
 ## Customization
 
 Four options cover the supported personalization; every other appearance
