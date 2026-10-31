@@ -116,6 +116,11 @@
       "purpose": "Refresh re-reads the file and publishes the new outline."
     },
     {
+      "name": "etaf-md-preview-tests-unsaved-edits-reach-the-preview",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Editing the source buffer repaints the preview before it is saved, and closing the preview stops following the buffer."
+    },
+    {
       "name": "etaf-md-preview-tests-entry-command-keeps-the-source-window",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "The side-by-side command opens the preview in a neighbouring window, keeps the source buffer selected, and closing the preview gives the window back."

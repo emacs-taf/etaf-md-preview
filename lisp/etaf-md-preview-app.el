@@ -165,6 +165,36 @@ settle instead of running once per event.")
 (defvar etaf-md-preview--follow-timers (make-hash-table :test #'equal)
   "Pending repaints by absolute source file name.")
 
+(defvar etaf-md-preview--live-sources (make-hash-table :test #'equal)
+  "Visiting buffers followed for unsaved edits by absolute source file name.")
+
+(defun etaf-md-preview--live-changed (&rest _)
+  "Repaint the preview of the file being edited once the edit settles.
+The hook runs on every buffer change, so it only schedules: the parse and the
+publication happen once the typing pauses."
+  (when buffer-file-name
+    (etaf-md-preview--follow-schedule (expand-file-name buffer-file-name))))
+
+(defun etaf-md-preview--live-start (session)
+  "Make SESSION follow unsaved edits of its visiting buffer, when it has one.
+A file with no visiting buffer has nothing to follow until it is opened, and a
+session built from text never follows a buffer."
+  (when-let* ((path (plist-get session :file))
+              (buffer (get-file-buffer (expand-file-name path))))
+    (puthash (expand-file-name path) buffer etaf-md-preview--live-sources)
+    (plist-put session :source-buffer buffer)
+    (with-current-buffer buffer
+      (add-hook 'after-change-functions #'etaf-md-preview--live-changed nil t))))
+
+(defun etaf-md-preview--live-stop (file)
+  "Stop following unsaved edits of FILE and drop its visiting buffer."
+  (when-let* ((file (and file (expand-file-name file)))
+              (buffer (gethash file etaf-md-preview--live-sources)))
+    (when (buffer-live-p buffer)
+      (with-current-buffer buffer
+        (remove-hook 'after-change-functions #'etaf-md-preview--live-changed t)))
+    (remhash file etaf-md-preview--live-sources)))
+
 (defconst etaf-md-preview--follow-attempts 3
   "Times to retry a watch while its file is missing.
 An editor that saves atomically deletes the old file before it renames the
@@ -222,11 +252,13 @@ A session created from text has no file, so it never follows anything."
     (let ((file (expand-file-name path)))
       (puthash file session etaf-md-preview--follow-sessions)
       (etaf-md-preview--follow-watch file)
+      (etaf-md-preview--live-start session)
       (add-hook 'after-save-hook #'etaf-md-preview--follow-saved t))))
 
 (defun etaf-md-preview--follow-unregister (file)
   "Stop following FILE: drop its watch, pending repaint and session."
   (when-let* ((file (and file (expand-file-name file))))
+    (etaf-md-preview--live-stop file)
     (when-let* ((watch (gethash file etaf-md-preview--follow-watches)))
       (ignore-errors (file-notify-rm-watch watch))
       (remhash file etaf-md-preview--follow-watches))
@@ -258,7 +290,13 @@ pending, and that spins instead of settling."
               (buffer (plist-get session :buffer))
               ((buffer-live-p buffer)))
     (condition-case error
-        (etaf-md-preview-refresh session)
+        (let ((source (plist-get session :source-buffer)))
+          (if (buffer-live-p source)
+              (etaf-md-preview--publish
+               session
+               (with-current-buffer source
+                 (buffer-substring-no-properties (point-min) (point-max))))
+            (etaf-md-preview-refresh session)))
       (etaf-md-preview-error
        (message "Preview kept its last render: %s"
                 (error-message-string error))))))

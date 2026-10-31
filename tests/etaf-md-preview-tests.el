@@ -581,6 +581,44 @@ window switching, and closing the preview gives the window back."
       (when (buffer-live-p source) (kill-buffer source))
       (delete-file file))))
 
+(ert-deftest etaf-md-preview-tests-unsaved-edits-reach-the-preview ()
+  "Editing the source buffer repaints the preview without saving it.
+The preview follows the visiting buffer, so a reader comparing a paragraph
+with its render does not have to save first; closing the preview stops
+following the buffer, so a later edit cannot bring it back."
+  (let* ((file (make-temp-file "etaf-md-preview-live-" nil ".md"))
+         (source nil)
+         (preview nil))
+    (unwind-protect
+        (progn
+          (with-temp-file file (insert "# Live\n\nold text\n"))
+          (setq source (find-file-noselect file))
+          (setq preview (etaf-md-preview-open file))
+          (should (with-current-buffer preview
+                    (string-match-p "old text" (buffer-string))))
+          (with-current-buffer source
+            (goto-char (point-max))
+            (insert "fresh words never saved\n"))
+          (should (buffer-modified-p source))
+          (sit-for 0.5)
+          (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+          (with-current-buffer preview
+            (should (string-match-p "fresh words never saved" (buffer-string))))
+          (let ((name (buffer-name preview)))
+            (with-current-buffer preview (etaf-md-preview-close))
+            (should-not (get-buffer name))
+            ;; an edit after closing must not bring the preview back
+            (with-current-buffer source
+              (goto-char (point-max))
+              (insert "after the preview closed\n"))
+            (sit-for 0.3)
+            (should-not (get-buffer name))))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
+
 (ert-deftest etaf-md-preview-tests-theme-changes-and-rejects-unknown ()
   "Themes cycle in order and unknown palettes are rejected."
   (let ((session (etaf-md-preview-create :text "# x\n" :theme 'dark)))

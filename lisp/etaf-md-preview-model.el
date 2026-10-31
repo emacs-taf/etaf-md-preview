@@ -182,22 +182,30 @@ page background, and nil when it leaves the Emacs theme's background."
           :footnotes (mapcar (lambda (footnote) (plist-get footnote :label))
                              (plist-get document :footnotes)))))
 
-(defun etaf-md-preview-refresh (session)
-  "Re-read and re-parse SESSION's document.
-Return SESSION.  A read failure signals `etaf-md-preview-error' and leaves the
-published document untouched."
-  (let* ((file (plist-get session :file))
-         (contents (if file (etaf-md-preview--read-source file)
-                     (or (plist-get session :text) "")))
-         (document (etaf-md-preview--parse contents (plist-get session :flavor))))
+(defun etaf-md-preview--publish (session contents)
+  "Publish CONTENTS as SESSION's document and return SESSION.
+The parser and the title fallback are shared by every refresh path: reading
+the file again, following a save, and following an edit that was not saved."
+  (let ((document (etaf-md-preview--parse contents (plist-get session :flavor))))
     (etaf-batch
       (etaf-set-value (etaf-md-preview--ref session :document) document)
       (etaf-set-value (etaf-md-preview--ref session :title)
                       (or (plist-get document :title)
-                          (and file (file-name-nondirectory file))
+                          (and (plist-get session :file)
+                               (file-name-nondirectory (plist-get session :file)))
                           "Markdown"))
       (etaf-set-value (etaf-md-preview--ref session :error) nil))
     session))
+
+(defun etaf-md-preview-refresh (session)
+  "Re-read and re-parse SESSION's document.
+Return SESSION.  A read failure signals `etaf-md-preview-error' and leaves the
+published document untouched."
+  (let ((file (plist-get session :file)))
+    (etaf-md-preview--publish
+     session
+     (if file (etaf-md-preview--read-source file)
+       (or (plist-get session :text) "")))))
 
 (defun etaf-md-preview-set-theme (session theme)
   "Show SESSION with palette THEME; return SESSION.

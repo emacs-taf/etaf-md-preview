@@ -63,10 +63,12 @@
 ;; navigation, reloading, theming and closing; the reading measure starts from
 ;; the showing window and later resizes reflow through the framework's viewport
 ;; update, so the document is never rebuilt for a window geometry change.
-;; A preview opened from a file follows it: saving the source, or changing it
-;; on disk from another program, repaints the document after the write settles.
-;; Closing the buffer releases the session's Runtime and its watch, so
-;; reopening the same file renders a fresh preview.
+;; A preview opened from a file follows it: an unsaved edit in its buffer
+;; repaints the document once the typing pauses, and saving the source or
+;; changing it on disk from another program repaints it after the write
+;; settles.  Closing the buffer releases the session's Runtime, its watch and
+;; the buffer's change hook, so reopening the same file renders a fresh
+;; preview.
 ;;
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)

@@ -4,6 +4,10 @@
 
 ### Added
 
+- A preview also follows unsaved edits of its source buffer: typing repaints
+  the document about 0.2 s after the keys stop, so a paragraph and its render
+  can be compared without saving, and saving or an outside write still
+  repaints as before.  Closing the preview removes the buffer's change hook.
 - `etaf-md-preview` opens the preview in a window beside the
   source and keeps the point in the source text, so one command from a
   Markdown buffer sets up editing with a live preview.
