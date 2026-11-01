@@ -85,15 +85,25 @@ heading starts after the `#` markers the render folds away; a bullet or quote
 keeps its marker, because the paint draws an equal-width replacement glyph in
 its place.
 
-Keys arrive at `input-method-function`, below the command loop, so an active
-input method translates them as it would in any buffer while the page itself
-stays read-only: the handler writes the source buffer and the preview repaints
-the blocks that changed. Motion commands run against the source and the
-projection maps the result back to a painted cell, which is why `C-e` stops at
-the end of a paragraph instead of the end of the padded screen line. That
-repaint is asynchronous, so between a keystroke and the repaint the projection
-still describes the previous page; an anchor carries the last painted position
-and its source offset across the gap.
+The canvas is read-only: it is a paint of the document and never receives
+text. Every key it gets is translated to a source offset through the
+projection, the same command runs in the markdown buffer at that offset, and
+the new source offset places the caret after the repaint. Keys split by what
+they mean: motion, paging and the wheel stay native to the canvas, where one
+cell is one painted character, while document semantics (`C-e`, `C-a`, `M-f`,
+`M-b`, `M-<`, `M->`) run against the source, which is why `C-e` stops at the
+end of a paragraph instead of the end of the padded screen line.
+
+A system input method needs no emulation. macOS composes the keystroke before
+Emacs sees it, so the finished character arrives as `last-command-event` in
+`self-insert-command`, which is remapped to the forwarding command. Nothing
+here drives `quail-input-method`: run outside an interactive session it blocks
+waiting for its candidate window and spins at 100% CPU, which reads as a frozen
+Emacs. An edit repaints synchronously — publish, flush, then place the caret
+from the new projection — because an anchor cached across frames would leave a
+window in which the caret still points at the previous page's offset. The
+source is written with `set-buffer-modified-p nil` and saved once when the
+editing session ends, so no keystroke asks about saving.
 
 **Session as the only state.** There is no second copy of the outline, theme
 or document. Navigation recomputes heading positions from the live buffer on
