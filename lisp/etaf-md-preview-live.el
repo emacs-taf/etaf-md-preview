@@ -299,7 +299,11 @@ reach the markdown source while the page stays a rendering."
           (setq-local overriding-local-map nil)
           (setq-local buffer-read-only t)
           (setq-local input-method-function etaf-md-preview-live--inner-input)
-          (setq-local etaf-md-preview-live--inner-input nil))))
+          (setq-local etaf-md-preview-live--inner-input nil)
+          ;; Give the page back the cursor and the modality rule it had
+          ;; before it accepted typing.
+          (kill-local-variable 'cursor-type)
+          (kill-local-variable 'etaf-cursor-follows-input-modality))))
     (setq etaf-md-preview-live--session nil
           etaf-md-preview-live--anchor nil)))
 
