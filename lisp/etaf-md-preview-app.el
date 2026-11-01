@@ -36,6 +36,8 @@
 An in-place edit uses it to put the caret back on the repainted page; the hook
 runs after the publication, so a handler reads the new document.")
 
+(declare-function etaf-md-preview-edit-document "etaf-md-preview-live" ())
+
 (defconst etaf-md-preview--keys
   '(("n" etaf-md-preview-next-heading "下一个标题")
     ("p" etaf-md-preview-previous-heading "上一个标题")
@@ -516,14 +518,18 @@ themselves."
           (when (and buffer-file-name
                      (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'" buffer-file-name))
             (file-relative-name buffer-file-name default-directory)))))
-  (if (and (listp source) (etaf-ref-p (plist-get source :document)))
-      (etaf-md-preview--display source (etaf-md-preview--buffer-name-for-session source))
-    (let* ((file (expand-file-name source))
-           (name (etaf-md-preview--buffer-name file))
-           (existing (get-buffer name)))
-      (if (and existing (etaf-app-state existing))
-          (switch-to-buffer existing)
-        (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
+  (let ((editing (called-interactively-p 'any)))
+    (if (and (listp source) (etaf-ref-p (plist-get source :document)))
+        (etaf-md-preview--display source
+                                  (etaf-md-preview--buffer-name-for-session source)
+                                  editing)
+      (let* ((file (expand-file-name source))
+             (name (etaf-md-preview--buffer-name file))
+             (existing (get-buffer name)))
+        (if (and existing (etaf-app-state existing))
+            (switch-to-buffer existing)
+          (etaf-md-preview--display (etaf-md-preview-create :file file) name
+                                    editing))))))
 
 ;;;###autoload
 (defun etaf-md-preview (&optional source)
@@ -557,8 +563,11 @@ window layout gives way to those two panes, the point stays in the source, and
       (etaf-md-preview--buffer-name file)
     "*ETAF Markdown*"))
 
-(defun etaf-md-preview--display (session name)
+(defun etaf-md-preview--display (session name &optional editing)
   "Open SESSION as the application buffer NAME and return that buffer.
+EDITING makes the page accept typing as soon as it opens, which is what a
+person opening a preview expects; a programmatic mount leaves the page in
+navigation so the caller decides when editing starts.
 The showing window sets the initial reading measure only; later resizes
 reflow the viewport-relative column without changing it, so a width chosen
 with `[' and `]' survives them.  Cells the page does not paint, such as the
@@ -597,6 +606,16 @@ session without one lets the Emacs theme show through."
                                       (cdr cell)))
                               (etaf-md-preview--heading-positions session))))))
     (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+    ;; A preview of a file is a page the reader edits, so it opens ready to
+    ;; type: the caret moves and text goes to the source without a mode to
+    ;; enter first.  A session without a file stays read-only.
+    (when (and editing (plist-get session :file))
+      (with-current-buffer buffer
+        (condition-case error
+            (etaf-md-preview-edit-document)
+          (error
+           (message "Preview opened read-only: %s"
+                    (error-message-string error))))))
     buffer))
 
 (provide 'etaf-md-preview-app)
