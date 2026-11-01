@@ -1058,6 +1058,33 @@ renders it, and the source buffer holds the same text without a save."
       (should (string-match-p "ADDED plain \\*\\*bold\\*\\* text"
                               (etaf-md-preview-tests--lines source))))))
 
+(ert-deftest etaf-md-preview-tests-empty-block-paints-its-source-skeleton ()
+  "A block whose text is gone paints the markup that is still in the source.
+Without it the page shows a gap where the block sits, and the caret has nowhere
+to stand, so an emptied heading or table could not be typed back."
+  (etaf-md-preview-tests--with-preview-source
+      "# \n\nbody\n\n- \n\n> \n\n```elisp\n```\n\n|  |\n|---|\n|  |\n"
+    (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+    (let ((lines (etaf-md-preview-tests--lines preview)))
+      (should (string-match-p "^ *# *$" lines))
+      (should (string-match-p "•" lines))
+      (should (string-match-p "^ *> *$" lines))
+      (should (string-match-p "```elisp" lines))
+      (should (string-match-p "|-----|" lines))
+      (should (string-match-p "body" lines)))))
+
+(ert-deftest etaf-md-preview-tests-empty-block-does-not-hide-a-full-table ()
+  "A table that still holds text paints its cells, not its skeleton.
+The empty test has to read the cells the renderer was given; a table judged by
+a session text that is not published yet would paint a skeleton over its data."
+  (etaf-md-preview-tests--with-preview-source
+      "| 名称 | 数量 |\n|---|---|\n| 磁盘 | 10 |\n"
+    (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+    (let ((lines (etaf-md-preview-tests--lines preview)))
+      (should (string-match-p "名称" lines))
+      (should (string-match-p "磁盘" lines))
+      (should-not (string-match-p "|-----|" lines)))))
+
 (ert-deftest etaf-md-preview-tests-edit-key-opens-in-place-editing ()
   "The root key `e' types into the source without touching the painted page.
 Typing is an event that edits the source and lets the preview repaint, so the

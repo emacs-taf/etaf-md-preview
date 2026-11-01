@@ -239,6 +239,16 @@
       "name": "etaf-md-preview-tests-line-end-follows-the-paragraph",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "C-e on the painted page reaches the end of the source paragraph, not the padded line."
+    },
+    {
+      "name": "etaf-md-preview-tests-empty-block-paints-its-source-skeleton",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A heading, list item, quote, fence or table whose text is gone paints the markup its source still holds."
+    },
+    {
+      "name": "etaf-md-preview-tests-empty-block-does-not-hide-a-full-table",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A table that still holds text paints its cells rather than its skeleton."
     }
   ]
 }

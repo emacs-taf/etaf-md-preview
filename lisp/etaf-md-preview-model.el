@@ -119,8 +119,9 @@ A table with no cells left paints an empty grid, which gives the caret nothing
 to stand on; the skeleton is what lets a reader fill it back in."
   (let* ((columns (max 1 (length (or (plist-get block :aligns)
                                      (plist-get block :header)))))
-         (bar (concat "|" (mapconcat (lambda (_) "     |" (number-sequence 1 columns)) "")))
-         (rule (concat "|" (mapconcat (lambda (_) "-----|" (number-sequence 1 columns)) ""))))
+         (cells (number-sequence 1 columns))
+         (bar (concat "|" (mapconcat (lambda (_) "     |") cells "")))
+         (rule (concat "|" (mapconcat (lambda (_) "-----|") cells ""))))
     (concat bar "\n" rule "\n" bar)))
 
 (defun etaf-md-preview--block-marker (block)
@@ -142,43 +143,67 @@ reader see what is left and type it back."
     ('table (etaf-md-preview--table-skeleton block))
     (_ nil)))
 
+(defun etaf-md-preview--blank-p (value)
+  "Return non-nil when VALUE holds no text."
+  (string-empty-p (string-trim (or value ""))))
+
 (defun etaf-md-preview--block-content (block text)
   "Return BLOCK's own text in TEXT without its marker and line break.
 The rendered cells of a block stand for this text, so an empty result means the
 block paints nothing and the page would show a gap where its source sits."
   (when-let* ((begin (plist-get block :begin))
               (end (plist-get block :end))
+              ((integerp begin))
+              ((integerp end))
               ((<= 0 begin end (length text))))
     (let* ((slice (substring text begin end))
-           (marker (etaf-md-preview--block-marker block))
-           (body (if (and marker (string-prefix-p marker slice))
-                     (substring slice (length marker))
-                   slice)))
-      (string-trim body))))
+           (marker (etaf-md-preview--block-marker block)))
+      (when (and marker (string-prefix-p marker slice))
+        (setq slice (substring slice (length marker))))
+      (string-trim slice))))
 
-(defun etaf-md-preview--table-empty-p (block text)
-  "Return non-nil when BLOCK's table holds no cell text in TEXT.
+(defun etaf-md-preview--inline-text (node)
+  "Return the text NODE paints.
+A parsed cell holds a list of inline nodes rather than one node, and an inline
+node holds its own children, so this walks whatever shape it is given."
+  (cond ((stringp node) node)
+        ((null node) "")
+        ((and (consp node) (keywordp (car node)))
+         (or (plist-get node :text)
+             (mapconcat #'etaf-md-preview--inline-text (plist-get node :children) "")))
+        ((listp node)
+         (mapconcat #'etaf-md-preview--inline-text node ""))
+        (t "")))
+
+(defun etaf-md-preview--table-blank-p (block)
+  "Return non-nil when BLOCK's table holds no cell text.
 Only the pipes, dashes and padding that define the grid are left, so the render
 paints an empty grid and the caret has nowhere to stand inside it."
-  (when-let* ((begin (plist-get block :begin))
-              (end (plist-get block :end))
-              ((<= 0 begin end (length text))))
-    (string-empty-p
-     (string-trim (replace-regexp-in-string
-                   "[|[:space:]-]" "" (substring text begin end))))))
+  (cl-every (lambda (row)
+              (cl-every (lambda (cell)
+                          (etaf-md-preview--blank-p (etaf-md-preview--inline-text cell)))
+                        (if (listp row) row nil)))
+            (remq nil (cons (plist-get block :header) (plist-get block :rows)))))
 
-(defun etaf-md-preview--block-empty-p (block text)
+(defun etaf-md-preview--block-empty-p (block &optional text)
   "Return non-nil when BLOCK paints no content, so the page must show its marker.
 Deleting a heading's text is the case a reader meets first, but the rule holds
 for every block that carries a structure: a list item, a quote, a fence and a
 table all keep a skeleton in the source once their text is gone, and that
-skeleton is what lets the caret stand there and type it back."
+skeleton is what lets the caret stand there and type it back.
+
+The block answers this from its own fields.  A render can run before the
+session publishes its text, and a block judged by that text would be painted as
+if it had content and keep that paint."
   (and (etaf-md-preview--block-marker block)
        (pcase (plist-get block :type)
-         ('table (etaf-md-preview--table-empty-p block text))
-         ('code-block (string-empty-p (string-trim (or (plist-get block :text) ""))))
-         (_ (let ((content (etaf-md-preview--block-content block text)))
-              (and content (string-empty-p content)))))))
+         ('table (etaf-md-preview--table-blank-p block))
+         ((or 'heading 'list-item 'blockquote 'code-block)
+          ;; A quote keeps its text in its children and a heading keeps it in
+          ;; `:text'; both answer the same question through the same walk.
+          (etaf-md-preview--blank-p (etaf-md-preview--inline-text block)))
+         (_ (when text
+              (etaf-md-preview--blank-p (etaf-md-preview--block-content block text)))))))
 
 (defun etaf-md-preview--edit-slice (source)
   "Return (TEXT . TRAILING-NEWLINES) for SOURCE as shown in an edit session.
