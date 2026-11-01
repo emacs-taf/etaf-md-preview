@@ -96,6 +96,34 @@
 ;; republished.  The source buffer keeps one undo step per visit.
 ;; Signals `user-error' when the point is on no block of a preview.
 ;;
+;; Function: etaf-md-preview-edit-document ()
+;;;###autoload (autoload 'etaf-md-preview-edit-document "etaf-md-preview" nil t)
+;; Type into the source from the painted page; the root key `e' runs it.
+;; The page stays read-only: keys arrive as events below the command loop, edit
+;; the markdown source and let the preview repaint the blocks that changed, so
+;; the page always shows a rendering and never the characters being typed.  The
+;; caret is the buffer's own and moves over the painted cells natively, so
+;; arrow keys, Home/End and an input method behave as they do anywhere.
+;; `ESC' returns the page to navigation.  Signals `user-error' when the preview
+;; has no source file or is not mounted.
+;;
+;; Function: etaf-md-preview-editing-p ()
+;;;###autoload (autoload 'etaf-md-preview-editing-p "etaf-md-preview" nil t)
+;; Return non-nil when the current preview buffer accepts in-place typing.
+;;
+;; Function: etaf-md-preview-insert (text)
+;;;###autoload (autoload 'etaf-md-preview-insert "etaf-md-preview" nil t)
+;; Insert TEXT into the source at the painted caret and repaint.
+;; The page keeps its rendered shape; this is the command form of the typing
+;; event, for scripts and for keys that arrive outside the input channel.
+;; Signals `user-error' outside an in-place editing session.
+;;
+;; Function: etaf-md-preview-delete-char (&optional backward)
+;;;###autoload (autoload 'etaf-md-preview-delete-char "etaf-md-preview" nil t)
+;; Delete one source character at the painted caret.
+;; Interactively it deletes backwards; with BACKWARD nil it deletes forwards.
+;; Signals `user-error' outside an in-place editing session.
+;;
 ;; Function: etaf-md-preview-view (&optional session)
 ;;;###autoload (autoload 'etaf-md-preview-view "etaf-md-preview" nil t)
 ;; Return the preview View for SESSION.
@@ -216,6 +244,7 @@
 (require 'etaf-md-preview-model)
 (require 'etaf-md-preview-views)
 (require 'etaf-md-preview-app)
+(require 'etaf-md-preview-live)
 
 (defun etaf-md-preview-doctor ()
   "Return capability facts for reading Markdown in ETAF.

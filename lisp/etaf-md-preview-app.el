@@ -31,11 +31,16 @@
   "Return the preview buffer name for FILE."
   (format "*ETAF Markdown: %s*" (file-name-nondirectory file)))
 
+(defvar etaf-md-preview-after-repaint-functions nil
+  "Functions called with each session whose document was just republished.
+An in-place edit uses it to put the caret back on the repainted page; the hook
+runs after the publication, so a handler reads the new document.")
+
 (defconst etaf-md-preview--keys
   '(("n" etaf-md-preview-next-heading "下一个标题")
     ("p" etaf-md-preview-previous-heading "上一个标题")
     ("C-c j" etaf-md-preview-goto-heading "选择标题")
-    ("e" etaf-md-preview-edit-block "编辑这一块")
+    ("e" etaf-md-preview-edit-document "就地编辑")
     ("r" etaf-md-preview-reload "重新加载文档")
     ("t" etaf-md-preview--cycle-theme-command "切换主题")
     ("[" etaf-md-preview-narrower "缩窄阅读栏")
@@ -315,7 +320,8 @@ pending, and that spins instead of settling."
             (etaf-md-preview-refresh session)))
       (etaf-md-preview-error
        (message "Preview kept its last render: %s"
-                (error-message-string error))))))
+                (error-message-string error))))
+    (run-hook-with-args 'etaf-md-preview-after-repaint-functions session)))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Editing a block in place

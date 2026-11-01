@@ -1058,21 +1058,26 @@ renders it, and the source buffer holds the same text without a save."
       (should (string-match-p "ADDED plain \\*\\*bold\\*\\* text"
                               (etaf-md-preview-tests--lines source))))))
 
-(ert-deftest etaf-md-preview-tests-edit-key-opens-the-block-at-point ()
-  "The root key `e' edits the block at point, and RET keeps activating links.
-The application's own keys outrank the renderer's map, so the editing key has
-to leave the activation key alone."
+(ert-deftest etaf-md-preview-tests-edit-key-opens-in-place-editing ()
+  "The root key `e' types into the source without touching the painted page.
+Typing is an event that edits the source and lets the preview repaint, so the
+page keeps its rendered shape and never receives the character itself."
   (etaf-md-preview-tests--with-preview-source
       "# Doc\n\nplain [link](https://example.com) text\n"
     (with-current-buffer preview
       (etaf-md-preview-tests--goto-rendered "plain link text")
       (execute-kbd-macro "e")
-      (should (string-match-p "plain \\[link\\]"
-                              (etaf-md-preview-tests--lines preview)))
-      (execute-kbd-macro (kbd "ESC"))
+      (should (etaf-md-preview-editing-p))
+      ;; The page accepts keys as events: text reaches the source, and the page
+      ;; keeps painting the rendered document instead of the typed character.
+      (etaf-md-preview-insert "Z")
       (etaf-runtime-flush (etaf-runtime-for-buffer preview))
-      (should-not (string-match-p "\\[link\\]"
-                                  (etaf-md-preview-tests--lines preview))))))
+      (should (string-match-p "Z"
+                              (etaf-md-preview-tests--lines source)))
+      (should-not (string-match-p "Z"
+                                  (etaf-md-preview-tests--lines preview)))
+      (execute-kbd-macro (kbd "ESC"))
+      (should-not (etaf-md-preview-editing-p)))))
 
 (ert-deftest etaf-md-preview-tests-edit-block-reparses-a-changed-heading ()
   "Deleting a heading's marker turns the block into a paragraph.

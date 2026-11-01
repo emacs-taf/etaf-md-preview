@@ -231,9 +231,9 @@
       "purpose": "Publishing the document again while a block is edited keeps the text the session holds instead of replacing it with the last parse's."
     },
     {
-      "name": "etaf-md-preview-tests-edit-key-opens-the-block-at-point",
+      "name": "etaf-md-preview-tests-edit-key-opens-in-place-editing",
       "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "The root key `e' opens the block at point for editing, and the activation key RET keeps activating links."
+      "purpose": "The e key types into the source without changing the painted page."
     }
   ]
 }
