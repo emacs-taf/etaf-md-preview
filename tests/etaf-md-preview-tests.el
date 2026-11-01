@@ -1068,13 +1068,16 @@ page keeps its rendered shape and never receives the character itself."
       (etaf-md-preview-tests--goto-rendered "plain link text")
       (execute-kbd-macro "e")
       (should (etaf-md-preview-editing-p))
-      ;; The page accepts keys as events: text reaches the source, and the page
-      ;; keeps painting the rendered document instead of the typed character.
+      ;; The character reaches the source, and the page repaints from it: the
+      ;; page holds a rendering of the document, so it shows the character where
+      ;; the render puts it and never the markdown notation around it.
       (etaf-md-preview-insert "Z")
       (etaf-runtime-flush (etaf-runtime-for-buffer preview))
       (should (string-match-p "Z"
                               (etaf-md-preview-tests--lines source)))
-      (should-not (string-match-p "Z"
+      (should (string-match-p "Z"
+                              (etaf-md-preview-tests--lines preview)))
+      (should-not (string-match-p "\\[link\\]"
                                   (etaf-md-preview-tests--lines preview)))
       (execute-kbd-macro (kbd "<escape>"))
       (should-not (etaf-md-preview-editing-p)))))

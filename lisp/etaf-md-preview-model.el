@@ -105,6 +105,81 @@ own error type at its boundary."
     (and (integerp begin) (integerp end) (<= 0 begin end (length text))
          (substring text begin end))))
 
+(defun etaf-md-preview--session-text (session)
+  "Return SESSION's current source text, reading its file buffer when it has one."
+  (let ((source (plist-get session :source-buffer)))
+    (if (buffer-live-p source)
+        (with-current-buffer source
+          (buffer-substring-no-properties (point-min) (point-max)))
+      (or (plist-get session :text) ""))))
+
+(defun etaf-md-preview--table-skeleton (block)
+  "Return BLOCK's table as the pipe-and-dashes source that defines it.
+A table with no cells left paints an empty grid, which gives the caret nothing
+to stand on; the skeleton is what lets a reader fill it back in."
+  (let* ((columns (max 1 (length (or (plist-get block :aligns)
+                                     (plist-get block :header)))))
+         (bar (concat "|" (mapconcat (lambda (_) "     |" (number-sequence 1 columns)) "")))
+         (rule (concat "|" (mapconcat (lambda (_) "-----|" (number-sequence 1 columns)) ""))))
+    (concat bar "\n" rule "\n" bar)))
+
+(defun etaf-md-preview--block-marker (block)
+  "Return the source skeleton BLOCK paints when its render has no content.
+A heading carries its hashes, a list item its bullet, a quote its angle, a
+fence its backticks, a table its pipes and rule: these are the characters the
+render folds away, and showing them once the content is gone is what lets a
+reader see what is left and type it back."
+  (pcase (plist-get block :type)
+    ('heading (concat (make-string (max 1 (or (plist-get block :level) 1)) ?#) " "))
+    ('list-item (if-let* ((start (plist-get block :start)))
+                    (format "%s. " start)
+                  "- "))
+    ('blockquote "> ")
+    ('thematic-break "---")
+    ('code-block (let ((info (or (plist-get block :info)
+                                 (plist-get block :lang) "")))
+                   (if (string-empty-p info) "```" (concat "```" info))))
+    ('table (etaf-md-preview--table-skeleton block))
+    (_ nil)))
+
+(defun etaf-md-preview--block-content (block text)
+  "Return BLOCK's own text in TEXT without its marker and line break.
+The rendered cells of a block stand for this text, so an empty result means the
+block paints nothing and the page would show a gap where its source sits."
+  (when-let* ((begin (plist-get block :begin))
+              (end (plist-get block :end))
+              ((<= 0 begin end (length text))))
+    (let* ((slice (substring text begin end))
+           (marker (etaf-md-preview--block-marker block))
+           (body (if (and marker (string-prefix-p marker slice))
+                     (substring slice (length marker))
+                   slice)))
+      (string-trim body))))
+
+(defun etaf-md-preview--table-empty-p (block text)
+  "Return non-nil when BLOCK's table holds no cell text in TEXT.
+Only the pipes, dashes and padding that define the grid are left, so the render
+paints an empty grid and the caret has nowhere to stand inside it."
+  (when-let* ((begin (plist-get block :begin))
+              (end (plist-get block :end))
+              ((<= 0 begin end (length text))))
+    (string-empty-p
+     (string-trim (replace-regexp-in-string
+                   "[|[:space:]-]" "" (substring text begin end))))))
+
+(defun etaf-md-preview--block-empty-p (block text)
+  "Return non-nil when BLOCK paints no content, so the page must show its marker.
+Deleting a heading's text is the case a reader meets first, but the rule holds
+for every block that carries a structure: a list item, a quote, a fence and a
+table all keep a skeleton in the source once their text is gone, and that
+skeleton is what lets the caret stand there and type it back."
+  (and (etaf-md-preview--block-marker block)
+       (pcase (plist-get block :type)
+         ('table (etaf-md-preview--table-empty-p block text))
+         ('code-block (string-empty-p (string-trim (or (plist-get block :text) ""))))
+         (_ (let ((content (etaf-md-preview--block-content block text)))
+              (and content (string-empty-p content)))))))
+
 (defun etaf-md-preview--edit-slice (source)
   "Return (TEXT . TRAILING-NEWLINES) for SOURCE as shown in an edit session.
 TEXT drops the block's final newline and counts it in TRAILING-NEWLINES, so

@@ -421,6 +421,9 @@ as a bordered placeholder that opens in the browser."
 ;;; ---------------------------------------------------------------------------
 
 (declare-function etaf-md-preview--env "etaf-md-preview-model" (session))
+(declare-function etaf-md-preview--block-marker "etaf-md-preview-model" (block))
+(declare-function etaf-md-preview--block-empty-p "etaf-md-preview-model" (block text))
+(declare-function etaf-md-preview--session-text "etaf-md-preview-model" (session))
 (declare-function etaf-md-preview--card-env "etaf-md-preview-model" (session env scope))
 
 (etaf-define-component etaf-md-preview-block (&key session identity block editing)
@@ -455,7 +458,16 @@ the application can open and close the session around it."
                                           :font-family (face-attribute
                                                         'fixed-pitch :family nil t))
                                     (list (plist-get editing :source)))))
-      (etaf-ui-markdown-view-block block env))))
+      ;; A block whose text is gone paints nothing, so the page would show a
+      ;; gap where its marker still lives in the source.  Showing the marker
+      ;; there is what lets a reader see what is left and type it back.
+      (let ((text (etaf-md-preview--session-text session)))
+        (if (etaf-md-preview--block-empty-p block text)
+            (etaf-node 'text
+                       (list :color (etaf-md-preview--env-color env :muted)
+                             :font-family (face-attribute 'fixed-pitch :family nil t))
+                       (list (etaf-md-preview--block-marker block)))
+          (etaf-ui-markdown-view-block block env))))))
 
 (defun etaf-md-preview--block-view (session key block ref &optional editing)
   "Return the keyed Component call that renders BLOCK of SESSION under KEY.

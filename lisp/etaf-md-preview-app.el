@@ -553,9 +553,19 @@ window layout gives way to those two panes, the point stays in the source, and
     (delete-other-windows)
     (switch-to-buffer buffer)
     (select-window (split-window-right))
-    (etaf-md-preview-open file)
-    (when-let* ((window (get-buffer-window buffer t)))
-      (select-window window))))
+    (let ((preview (etaf-md-preview-open file)))
+      ;; The preview beside the source is a page the reader edits as well:
+      ;; opening it through this command is still a person opening a preview,
+      ;; even though the call itself comes from Lisp.
+      (when (and (buffer-live-p preview) (plist-get (etaf-app-state preview) :file))
+        (with-current-buffer preview
+          (condition-case error
+              (etaf-md-preview-edit-document)
+            (error
+             (message "Preview opened read-only: %s"
+                      (error-message-string error))))))
+      (when-let* ((window (get-buffer-window buffer t)))
+        (select-window window)))))
 
 (defun etaf-md-preview--buffer-name-for-session (session)
   "Return the preview buffer name for SESSION."
