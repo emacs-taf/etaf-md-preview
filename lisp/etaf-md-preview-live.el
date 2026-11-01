@@ -149,6 +149,9 @@ Interactively it deletes backwards; with BACKWARD nil it deletes forwards."
     (when etaf-md-preview-live--document
       (etaf-document-close etaf-md-preview-live--document)
       (setq etaf-md-preview-live--document nil))
+    ;; Editing ended, so the page follows the file's buffer again: a change made
+    ;; anywhere else still reaches the page.
+    (etaf-md-preview--live-start etaf-md-preview-live--session)
     (setq etaf-md-preview-live--session nil)))
 
 (defun etaf-md-preview-edit-document ()
@@ -165,6 +168,10 @@ the edited markdown."
     (unless (and (buffer-live-p buffer) (etaf-runtime-for-buffer buffer))
       (user-error "This preview is not mounted"))
     (setq etaf-md-preview-live--session session)
+    ;; The page repaints itself after every key it forwards, so the follower
+    ;; that repaints on a buffer change would repeat the same work for the same
+    ;; text: one keystroke would cost two whole-page repaints.
+    (etaf-md-preview--live-stop (plist-get session :file))
     (let ((document (etaf-document-open
                      buffer
                      :source source
