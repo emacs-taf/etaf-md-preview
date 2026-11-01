@@ -150,11 +150,14 @@ column's side gutters."
 ;;; Following the source file
 ;;; ---------------------------------------------------------------------------
 
-(defconst etaf-md-preview--follow-delay 0.2
-  "Seconds to wait before a changed source repaints its preview.
-A save raises both `after-save-hook' and a file notification, and a formatter
-may write the file in several steps, so the repaint waits for the source to
-settle instead of running once per event.")
+(defconst etaf-md-preview--follow-tick 0.016
+  "Seconds between a source change and its repaint.
+One frame at 60 Hz.  A change only schedules a repaint when none is pending,
+so a burst of keystrokes coalesces into one repaint per frame instead of one
+per keystroke, and typing never waits for the keys to stop.")
+
+(defconst etaf-md-preview--follow-retry 0.2
+  "Seconds between attempts to watch a file that is temporarily missing.")
 
 (defvar etaf-md-preview--follow-sessions (make-hash-table :test #'equal)
   "Displayed preview sessions by absolute source file name.")
@@ -169,9 +172,9 @@ settle instead of running once per event.")
   "Visiting buffers followed for unsaved edits by absolute source file name.")
 
 (defun etaf-md-preview--live-changed (&rest _)
-  "Repaint the preview of the file being edited once the edit settles.
-The hook runs on every buffer change, so it only schedules: the parse and the
-publication happen once the typing pauses."
+  "Repaint the preview of the file being edited on the next frame.
+The hook runs on every buffer change; scheduling keeps one pending repaint
+per file, so a keystroke joins the frame that is already coming."
   (when buffer-file-name
     (etaf-md-preview--follow-schedule (expand-file-name buffer-file-name))))
 
@@ -199,7 +202,7 @@ session built from text never follows a buffer."
   "Times to retry a watch while its file is missing.
 An editor that saves atomically deletes the old file before it renames the
 new one over the name, and the watch must be re-armed once the name exists
-again; each retry waits one `etaf-md-preview--follow-delay'.")
+again; each retry waits `etaf-md-preview--follow-retry'.")
 
 (defun etaf-md-preview--follow-saved ()
   "Repaint the preview of the file being saved, when one is open."
@@ -242,7 +245,7 @@ callback, and the backend reports the same write again, which never settles."
   (when (gethash file etaf-md-preview--follow-sessions)
     (unless (etaf-md-preview--follow-watch file)
       (when (> attempts 0)
-        (run-with-timer etaf-md-preview--follow-delay nil
+        (run-with-timer etaf-md-preview--follow-retry nil
                         #'etaf-md-preview--follow-rearm file (1- attempts))))))
 
 (defun etaf-md-preview--follow-register (session)
@@ -270,12 +273,14 @@ A session created from text has no file, so it never follows anything."
       (remove-hook 'after-save-hook #'etaf-md-preview--follow-saved))))
 
 (defun etaf-md-preview--follow-schedule (file)
-  "Repaint FILE's preview once the source changes settle."
-  (when (gethash file etaf-md-preview--follow-sessions)
-    (when-let* ((pending (gethash file etaf-md-preview--follow-timers)))
-      (cancel-timer pending))
+  "Repaint FILE's preview on the next frame.
+A repaint already scheduled for FILE is kept rather than replaced, so the
+delay measures from the first change of the burst and the preview follows a
+typing hand instead of going quiet until it stops."
+  (when (and (gethash file etaf-md-preview--follow-sessions)
+             (not (gethash file etaf-md-preview--follow-timers)))
     (puthash file
-             (run-with-timer etaf-md-preview--follow-delay nil
+             (run-with-timer etaf-md-preview--follow-tick nil
                              #'etaf-md-preview--follow-repaint file)
              etaf-md-preview--follow-timers)))
 

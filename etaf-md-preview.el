@@ -64,9 +64,9 @@
 ;; the showing window and later resizes reflow through the framework's viewport
 ;; update, so the document is never rebuilt for a window geometry change.
 ;; A preview opened from a file follows it: an unsaved edit in its buffer
-;; repaints the document once the typing pauses, and saving the source or
-;; changing it on disk from another program repaints it after the write
-;; settles.  Each top-level block is its own Component, published under a key
+;; repaints the document on the next frame, so the render keeps up with the
+;; typing instead of waiting for the keys to stop, and saving the source or
+;; changing it on disk from another program repaints it the same way.  Each top-level block is its own Component, published under a key
 ;; that names the block's type and source, so a repaint renders the block that
 ;; changed and leaves the others' output and instances alone.  Closing the
 ;; buffer releases the session's Runtime, its watch, the buffer's change hook,

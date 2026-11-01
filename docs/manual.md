@@ -101,9 +101,10 @@ layout.
 
 ## Following the source
 
-An opened preview follows its source buffer: typing repaints the document
-about 0.2 s after the keys stop, and a save or an outside write repaints it
-after the write settles. Each top-level block is published as its own
+An opened preview follows its source buffer: each edit repaints the document
+on the next frame, about 16 ms later, so a typing hand sees the render change
+as it types. A burst of keys coalesces into one repaint per frame, and a save
+or an outside write takes the same path. Each top-level block is published as its own
 Component, keyed by its type and source text, so a repaint renders the block
 that changed and keeps every other block's rendered output, video handles and
 reading position. Inserting or removing a block re-renders the blocks after
