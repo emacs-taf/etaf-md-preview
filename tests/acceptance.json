@@ -199,6 +199,41 @@
       "name": "etaf-md-preview-tests-one-edit-repaints-one-block",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "An unsaved edit in the source buffer repaints the block it changed: the published buffer patch covers that block's lines while the rest of a long document keeps its text, because every top-level block is published as its own Component."
+    },
+    {
+      "name": "etaf-md-preview-tests-edit-block-writes-back-every-keystroke",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Typing in a block shows its markdown source, writes every keystroke into the source buffer, and renders the block again when the session ends."
+    },
+    {
+      "name": "etaf-md-preview-tests-edit-block-reparses-a-changed-heading",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Deleting a heading's marker while editing reparses the block as a paragraph, so the rendered document and the outline both change."
+    },
+    {
+      "name": "etaf-md-preview-tests-edit-block-keeps-the-blank-line-after-it",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Replacing a block's source keeps the newline that closes the block, so a visit that adds no newline never joins the next block."
+    },
+    {
+      "name": "etaf-md-preview-tests-edit-block-opens-from-a-padded-line",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The edit command finds the block under the point from any column of its rendered line, including the padding outside the block's box."
+    },
+    {
+      "name": "etaf-md-preview-tests-edit-block-undoes-as-one-visit",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "One undo in the source buffer reverts everything one visit to a block wrote, instead of one character at a time."
+    },
+    {
+      "name": "etaf-md-preview-tests-edit-block-survives-a-republish",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Publishing the document again while a block is edited keeps the text the session holds instead of replacing it with the last parse's."
+    },
+    {
+      "name": "etaf-md-preview-tests-edit-key-opens-the-block-at-point",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "The root key `e' opens the block at point for editing, and the activation key RET keeps activating links."
     }
   ]
 }

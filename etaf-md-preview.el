@@ -66,11 +66,13 @@
 ;; A preview opened from a file follows it: an unsaved edit in its buffer
 ;; repaints the document on the next frame, so the render keeps up with the
 ;; typing instead of waiting for the keys to stop, and saving the source or
-;; changing it on disk from another program repaints it the same way.  Each top-level block is its own Component, published under a key
-;; that names the block's type and source, so a repaint renders the block that
-;; changed and leaves the others' output and instances alone.  Closing the
-;; buffer releases the session's Runtime, its watch, the buffer's change hook,
-;; so reopening the same file renders a fresh preview.
+;; changing it on disk from another program repaints it the same way.  Each
+;; top-level block is its own Component, published under a key that names the
+;; block's type and source, so a repaint renders the block that changed and
+;; leaves the others' output and instances alone.  The root key `e' edits the
+;; block at point in place (`etaf-md-preview-edit-block').  Closing the buffer
+;; releases the session's Runtime, its watch, the buffer's change hook, so
+;; reopening the same file renders a fresh preview.
 ;;
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)
@@ -78,6 +80,21 @@
 ;; The current window goes away when the frame has another window, so a preview
 ;; opened beside its source closes back onto the source.  Signals `user-error'
 ;; when the current buffer is not a preview.
+;;
+;; Function: etaf-md-preview-edit-block ()
+;;;###autoload (autoload 'etaf-md-preview-edit-block "etaf-md-preview" nil t)
+;; Edit the block at point as its markdown source; the root key `e' runs it.
+;; The block replaces its render with the text it was parsed from, and a native
+;; edit session opens on that text: the caret, motion, selection, kill ring,
+;; undo and input methods are the buffer's own, and every change is written
+;; back to the source buffer as it is typed, so the file never disagrees with
+;; the preview.  `ESC' ends the session and renders the block again from the
+;; text as it now stands, which is how a block changes kind: deleting a
+;; heading's marker leaves a paragraph, and an added blank line splits a
+;; paragraph in two.  A click outside the block ends the session the same way,
+;; and an outside change to the file ends it before the document is
+;; republished.  The source buffer keeps one undo step per visit.
+;; Signals `user-error' when the point is on no block of a preview.
 ;;
 ;; Function: etaf-md-preview-view (&optional session)
 ;;;###autoload (autoload 'etaf-md-preview-view "etaf-md-preview" nil t)

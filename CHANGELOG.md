@@ -4,6 +4,12 @@
 
 ### Added
 
+- `e` edits the block under point in place: the block shows the markdown it
+  was parsed from and a native edit session opens on it, so the caret,
+  selection, undo, kill ring and input methods are the buffer's own.  Every
+  keystroke is written back to the source buffer at once, and `ESC` renders
+  the block again from the text as it stands, so deleting a heading's marker
+  leaves a paragraph and an added blank line splits a paragraph in two.
 - A preview also follows unsaved edits of its source buffer: typing repaints
   the document on the next frame, so a paragraph and its render can be
   compared while the keys are still moving, and saving or an outside write

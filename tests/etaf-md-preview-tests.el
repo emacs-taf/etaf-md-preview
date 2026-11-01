@@ -1000,5 +1000,166 @@ absolute one made the prompt show that directory twice."
       (when (buffer-live-p buffer)
         (with-current-buffer buffer (etaf-md-preview-close))))))
 
+;;; ---------------------------------------------------------------------------
+;;; Editing a block in place
+;;; ---------------------------------------------------------------------------
+
+(defmacro etaf-md-preview-tests--with-preview-source (contents &rest body)
+  "Visit a temporary markdown file holding CONTENTS and run BODY.
+BODY runs with `file', `source' and `preview' bound; the preview buffer, the
+visiting buffer and the file are removed afterwards."
+  (declare (indent 1) (debug t))
+  `(let* ((file (make-temp-file "etaf-md-preview-edit-" nil ".md"))
+          (source nil)
+          (preview nil))
+     (unwind-protect
+         (progn
+           (with-temp-file file (insert ,contents))
+           (setq source (find-file-noselect file))
+           (setq preview (etaf-md-preview-open file))
+           (with-current-buffer preview
+             (etaf-runtime-flush (etaf-runtime-for-buffer preview)))
+           ,@body)
+       (when (buffer-live-p preview) (kill-buffer preview))
+       (when (buffer-live-p source) (kill-buffer source))
+       (delete-file file))))
+
+(defun etaf-md-preview-tests--goto-rendered (needle)
+  "Move the point to the start of the rendered line holding NEEDLE."
+  (goto-char (point-min))
+  (unless (search-forward needle nil t)
+    (error "Rendered text is missing %S" needle))
+  (beginning-of-line))
+
+(defun etaf-md-preview-tests--lines (buffer)
+  "Return BUFFER's text without properties."
+  (with-current-buffer buffer
+    (buffer-substring-no-properties (point-min) (point-max))))
+
+(ert-deftest etaf-md-preview-tests-edit-block-writes-back-every-keystroke ()
+  "Typing in a block reaches the source buffer, and ending it renders again.
+The block shows the source it was parsed from, so while it is edited the
+preview holds the markdown notation itself; ending the session parses and
+renders it, and the source buffer holds the same text without a save."
+  (etaf-md-preview-tests--with-preview-source "# Doc\n\nplain **bold** text\n"
+    (with-current-buffer preview
+      (etaf-md-preview-tests--goto-rendered "plain bold text")
+      (etaf-md-preview-edit-block)
+      (should (string-match-p "\\*\\*bold\\*\\*" (etaf-md-preview-tests--lines preview)))
+      (execute-kbd-macro "ADDED ")
+      (should (string-match-p "ADDED plain \\*\\*bold\\*\\*"
+                              (etaf-md-preview-tests--lines source)))
+      (execute-kbd-macro (kbd "ESC"))
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should-not (string-match-p "\\*\\*bold"
+                                  (etaf-md-preview-tests--lines preview)))
+      (should (string-match-p "ADDED plain bold text"
+                              (etaf-md-preview-tests--lines preview)))
+      (should (string-match-p "ADDED plain \\*\\*bold\\*\\* text"
+                              (etaf-md-preview-tests--lines source))))))
+
+(ert-deftest etaf-md-preview-tests-edit-key-opens-the-block-at-point ()
+  "The root key `e' edits the block at point, and RET keeps activating links.
+The application's own keys outrank the renderer's map, so the editing key has
+to leave the activation key alone."
+  (etaf-md-preview-tests--with-preview-source
+      "# Doc\n\nplain [link](https://example.com) text\n"
+    (with-current-buffer preview
+      (etaf-md-preview-tests--goto-rendered "plain link text")
+      (execute-kbd-macro "e")
+      (should (string-match-p "plain \\[link\\]"
+                              (etaf-md-preview-tests--lines preview)))
+      (execute-kbd-macro (kbd "ESC"))
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should-not (string-match-p "\\[link\\]"
+                                  (etaf-md-preview-tests--lines preview))))))
+
+(ert-deftest etaf-md-preview-tests-edit-block-reparses-a-changed-heading ()
+  "Deleting a heading's marker turns the block into a paragraph.
+The outline is read from the rendered document, so it loses that entry."
+  (etaf-md-preview-tests--with-preview-source "# Doc\n\n## Section\n\nbody\n"
+    (with-current-buffer preview
+      (should (= 2 (length (plist-get (etaf-md-preview-state
+                                       (etaf-app-state preview))
+                                      :outline))))
+      (etaf-md-preview-tests--goto-rendered "Section")
+      (etaf-md-preview-edit-block)
+      (execute-kbd-macro "MAKED")
+      (execute-kbd-macro (kbd "ESC"))
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (= 1 (length (plist-get (etaf-md-preview-state
+                                       (etaf-app-state preview))
+                                      :outline))))
+      (should (string-match-p "MAKED## Section" (etaf-md-preview-tests--lines source)))
+      (should (string-match-p "MAKED## Section"
+                              (etaf-md-preview-tests--lines preview))))))
+
+(ert-deftest etaf-md-preview-tests-edit-block-keeps-the-blank-line-after-it ()
+  "Replacing a block's source keeps the blank line that separates the next one.
+The block's own text ends with a newline that closes it; the editor holds the
+rest, so a visit that adds no newline cannot join the two blocks."
+  (etaf-md-preview-tests--with-preview-source "# Doc\n\nfirst block\n\nsecond block\n"
+    (with-current-buffer preview
+      (etaf-md-preview-tests--goto-rendered "first block")
+      (etaf-md-preview-edit-block)
+      (execute-kbd-macro "X")
+      (execute-kbd-macro (kbd "ESC"))
+      (should (equal (etaf-md-preview-tests--lines source)
+                     "# Doc\n\nXfirst block\n\nsecond block\n"))
+      (should (= 3 (plist-get (etaf-md-preview-state (etaf-app-state preview))
+                              :blocks))))))
+
+(ert-deftest etaf-md-preview-tests-edit-block-opens-from-a-padded-line ()
+  "The command finds the block when the point sits in the line's padding.
+A rendered line carries cells outside the block's box, so neither end of the
+line is inside it and the lookup has to consult the rest of the line."
+  (etaf-md-preview-tests--with-preview-source "# Doc\n\nparagraph here\n"
+    (with-current-buffer preview
+      (etaf-md-preview-tests--goto-rendered "paragraph here")
+      (let ((start (point)))
+        (should (etaf-md-preview-edit-block))
+        (execute-kbd-macro (kbd "ESC"))
+        (goto-char start)
+        (should (etaf-md-preview-edit-block))
+        (execute-kbd-macro (kbd "ESC"))
+        (goto-char (line-end-position))
+        (should (etaf-md-preview-edit-block))))))
+
+(ert-deftest etaf-md-preview-tests-edit-block-undoes-as-one-visit ()
+  "One undo in the source buffer reverts everything a visit wrote.
+The preview replaces the block's source on every keystroke, and a reader who
+changes their mind expects the block back as it was, not one character at a
+time."
+  (etaf-md-preview-tests--with-preview-source "# Doc\n\noriginal text\n"
+    (with-current-buffer preview
+      (etaf-md-preview-tests--goto-rendered "original text")
+      (etaf-md-preview-edit-block)
+      (execute-kbd-macro "abc")
+      (execute-kbd-macro (kbd "ESC"))
+      (should (string-match-p "abcoriginal text"
+                              (etaf-md-preview-tests--lines source)))
+      (with-current-buffer source
+        (undo 1))
+      (should (equal (etaf-md-preview-tests--lines source)
+                     "# Doc\n\noriginal text\n")))))
+
+(ert-deftest etaf-md-preview-tests-edit-block-survives-a-republish ()
+  "Publishing the document again keeps what the open session holds.
+A theme switch republishes the document under the session; the block being
+edited has to show the session's own text instead of the last parse's, or the
+reader's typing would be replaced."
+  (etaf-md-preview-tests--with-preview-source "# Doc\n\nkeep me\n"
+    (with-current-buffer preview
+      (etaf-md-preview-tests--goto-rendered "keep me")
+      (etaf-md-preview-edit-block)
+      (execute-kbd-macro "ONE")
+      (etaf-md-preview-set-theme (etaf-app-state preview) 'light)
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (string-match-p "ONEkeep me" (etaf-md-preview-tests--lines preview)))
+      (execute-kbd-macro "TWO")
+      (execute-kbd-macro (kbd "ESC"))
+      (should (string-match-p "ONETWOkeep me"
+                              (etaf-md-preview-tests--lines source))))))
+
 (provide 'etaf-md-preview-tests)
 ;;; etaf-md-preview-tests.el ends here
