@@ -234,6 +234,11 @@
       "name": "etaf-md-preview-tests-edit-key-opens-in-place-editing",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "The e key types into the source without changing the painted page."
+    },
+    {
+      "name": "etaf-md-preview-tests-line-end-follows-the-paragraph",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "C-e on the painted page reaches the end of the source paragraph, not the padded line."
     }
   ]
 }

@@ -107,6 +107,14 @@
 ;; `ESC' returns the page to navigation.  Signals `user-error' when the preview
 ;; has no source file or is not mounted.
 ;;
+;; Function: etaf-md-preview-projection (session)
+;;;###autoload (autoload 'etaf-md-preview-projection "etaf-md-preview" nil nil)
+;; Return SESSION's painted page as a source projection, or nil when unmounted.
+;; The result is the framework's run vector: each run maps a painted span to
+;; the markdown range it renders, so `etaf-projection-source-offset' turns a
+;; caret position into a source offset and `etaf-projection-position' turns a
+;; source offset back into a painted one.
+;;
 ;; Function: etaf-md-preview-editing-p ()
 ;;;###autoload (autoload 'etaf-md-preview-editing-p "etaf-md-preview" nil t)
 ;; Return non-nil when the current preview buffer accepts in-place typing.

@@ -45,6 +45,7 @@ gap and keeps consecutive keystrokes advancing instead of drifting back.")
              (or (plist-get session :published) (make-hash-table :test #'equal)))
     entries))
 
+;;;###autoload
 (defun etaf-md-preview-projection (session)
   "Return SESSION's painted page as source ranges, or nil when unmounted."
   (when-let* ((buffer (plist-get session :buffer))
@@ -116,10 +117,37 @@ translator and only redirects the text it produces."
           ((string= text "\r") (etaf-md-preview--live-type "\n"))
           ((string= text "\d") (etaf-md-preview--live-delete t))
           ((string= text "\177") (etaf-md-preview--live-delete t))
-          ((string-match-p "\\`[[:cntrl:]]\\'" text) nil)
+          ;; Motion, function keys and anything else that is not text belong
+          ;; to the command loop: hand the key back rather than swallow it.
+          ((string-match-p "\\`[[:cntrl:]]\\'" text)
+           (push key unread-command-events))
           (t (etaf-md-preview--live-type text)))
     ;; Return nil: the painted page must never receive the character itself.
     nil))
+
+(defun etaf-md-preview--live-move (command)
+  "Run COMMAND against the source and put the caret where it lands.
+A key on the painted page names a position in the document, not in the
+rendering: the caret goes to the source offset COMMAND reached, and the
+projection says which painted cell holds it.  That is why `C-e' stops at the
+end of a paragraph instead of the end of the padded screen line."
+  (let* ((session etaf-md-preview-live--session)
+         (projection (etaf-md-preview-projection session))
+         (offset (and projection (etaf-md-preview--live-offset session projection)))
+         (source (etaf-md-preview--live-source session))
+         (target (and offset source
+                      (with-current-buffer source
+                        (save-excursion
+                          (goto-char (1+ offset))
+                          (call-interactively command)
+                          (1- (point)))))))
+    (when target
+      (etaf-md-preview--live-place-caret session target)
+      (setq etaf-md-preview-live--anchor (cons (point) target)))))
+
+(defun etaf-md-preview--live-move-command (command)
+  "Return an interactive command that runs COMMAND against the source."
+  (lambda () (interactive) (etaf-md-preview--live-move command)))
 
 (defconst etaf-md-preview--live-map
   (let ((map (make-sparse-keymap)))
@@ -128,9 +156,35 @@ translator and only redirects the text it produces."
     (define-key map (kbd "C-d") #'etaf-md-preview--live-delete-forward-command)
     (dolist (key '("RET" "<return>"))
       (define-key map (kbd key) #'etaf-md-preview--live-newline-command))
-    (define-key map (kbd "ESC") #'etaf-md-preview-exit-document)
+    (define-key map (kbd "<escape>") #'etaf-md-preview-exit-document)
+    ;; The canvas binds these to focus navigation because a painted page is
+    ;; normally an interface, not text.  While the page accepts typing the
+    ;; caret is text, so the same keys must move it as they do anywhere else.
+    ;; Horizontal motion, word motion and document edges are document
+    ;; positions: run them against the source and map the result back.
+    (dolist (entry '(("<left>" . backward-char) ("C-b" . backward-char)
+                     ("<right>" . forward-char) ("C-f" . forward-char)
+                     ("<home>" . move-beginning-of-line) ("C-a" . move-beginning-of-line)
+                     ("<end>" . move-end-of-line) ("C-e" . move-end-of-line)
+                     ("M-f" . forward-word) ("M-b" . backward-word)
+                     ("M-<" . beginning-of-buffer) ("M->" . end-of-buffer)))
+      (define-key map (kbd (car entry))
+                      (etaf-md-preview--live-move-command (cdr entry))))
+    ;; Vertical motion follows the painted lines, which is what the reader
+    ;; sees when a paragraph wraps.
+    (dolist (entry '(("<up>" . previous-line) ("C-p" . previous-line)
+                     ("<down>" . next-line) ("C-n" . next-line)
+                     ("C-v" . scroll-up-command) ("M-v" . scroll-down-command)
+                     ("<prior>" . scroll-down-command) ("<next>" . scroll-up-command)
+                     ("<wheel-up>" . mwheel-scroll) ("<wheel-down>" . mwheel-scroll)))
+      (define-key map (kbd (car entry)) (cdr entry)))
+    ;; A press on the page moves the caret, as it does in any buffer.
+    (dolist (event '(down-mouse-1 drag-mouse-1 mouse-1))
+      (define-key map (vector event) #'mouse-set-point))
     map)
-  "Keys the painted page handles itself; typing keys arrive as events.")
+  "Keys that move the caret and edit text while the page accepts typing.
+Typing keys are not bound: they arrive through the input channel, so an input
+method composes as it does in any buffer.")
 
 (defun etaf-md-preview--live-delete-back-command ()
   "Delete the source character before the painted caret."
@@ -172,6 +226,27 @@ the caret; otherwise the one after it."
   (interactive "P")
   (etaf-md-preview--live-delete (if backward t (not (called-interactively-p 'any)))))
 
+(defun etaf-md-preview--live-ime-advice (original key)
+  "Send an input method's translation to the source instead of the page.
+An active input method installs itself as the key translator; this keeps that
+translator and only redirects the text it produces, which is what lets Chinese
+reach the markdown source while the page stays a rendering."
+  (let ((result (funcall original key)))
+    (if (and result etaf-md-preview-live--session)
+        (progn (etaf-md-preview--live-type (concat result)) nil)
+      result)))
+
+(advice-add 'quail-input-method :around #'etaf-md-preview--live-ime-advice)
+
+(defun etaf-md-preview--live-rewrap ()
+  "Take the input channel back after an input method installs itself."
+  (when (and etaf-md-preview-live--session
+             (equal (plist-get etaf-md-preview-live--session :buffer)
+                    (current-buffer)))
+    (setq-local input-method-function #'etaf-md-preview--live-input)))
+
+(add-hook 'input-method-deactivate-hook #'etaf-md-preview--live-rewrap)
+
 ;;;; Session
 
 (defun etaf-md-preview-exit-document ()
@@ -182,6 +257,7 @@ the caret; otherwise the one after it."
       (when (buffer-live-p buffer)
         (with-current-buffer buffer
           (setq-local overriding-local-map nil)
+          (setq-local buffer-read-only t)
           (setq-local input-method-function etaf-md-preview-live--inner-input)
           (setq-local etaf-md-preview-live--inner-input nil))))
     (setq etaf-md-preview-live--session nil
@@ -211,6 +287,12 @@ unchanged."
           etaf-md-preview-live--anchor nil)
     (with-current-buffer buffer
       (setq-local overriding-local-map etaf-md-preview--live-map)
+      (setq-local cursor-type 'bar)
+      ;; The page is a rendering: typed text belongs to the source, never here.
+      (setq-local buffer-read-only t)
+      ;; A press on the page places a caret the user must see, so the cursor
+      ;; keeps showing instead of following the pointer's hidden style.
+      (setq-local etaf-cursor-follows-input-modality nil)
       (setq-local cursor-type 'bar)
       (setq-local etaf-md-preview-live--inner-input input-method-function)
       (setq-local input-method-function #'etaf-md-preview--live-input))

@@ -1076,8 +1076,31 @@ page keeps its rendered shape and never receives the character itself."
                               (etaf-md-preview-tests--lines source)))
       (should-not (string-match-p "Z"
                                   (etaf-md-preview-tests--lines preview)))
-      (execute-kbd-macro (kbd "ESC"))
+      (execute-kbd-macro (kbd "<escape>"))
       (should-not (etaf-md-preview-editing-p)))))
+
+(ert-deftest etaf-md-preview-tests-line-end-follows-the-paragraph ()
+  "`C-e' on the painted page reaches the end of the paragraph it belongs to.
+The key names a document position, so it runs against the source and the
+projection places the caret back on the painted cell; the padded screen line
+never decides where it stops."
+  (etaf-md-preview-tests--with-preview-source
+      "# Doc\n\nalpha beta gamma delta\n\ntail\n"
+    (with-current-buffer preview
+      (execute-kbd-macro "e")
+      (goto-char (point-min))
+      (search-forward "alpha beta")
+      (call-interactively (lookup-key overriding-local-map (kbd "C-e")))
+      (let ((source-end (with-current-buffer source
+                          (save-excursion
+                            (goto-char (point-min))
+                            (forward-line 2)
+                            (line-end-position)))))
+        (should (= (1- source-end)
+                   (etaf-projection-source-offset
+                    (etaf-md-preview-projection (etaf-app-state))
+                    (point)))))
+      (execute-kbd-macro (kbd "<escape>")))))
 
 (ert-deftest etaf-md-preview-tests-edit-block-reparses-a-changed-heading ()
   "Deleting a heading's marker turns the block into a paragraph.
