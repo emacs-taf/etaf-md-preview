@@ -236,9 +236,9 @@
       "purpose": "The e key types into the source without changing the painted page."
     },
     {
-      "name": "etaf-md-preview-tests-line-end-follows-the-paragraph",
+      "name": "etaf-md-preview-tests-line-end-follows-the-source-line",
       "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "C-e on the painted page reaches the end of the source paragraph, not the padded line."
+      "purpose": "C-e on the painted page runs the source's own command, so the caret stops at the end of the line the document holds instead of at the end of a padded screen row."
     },
     {
       "name": "etaf-md-preview-tests-empty-block-paints-its-source-skeleton",
@@ -264,6 +264,21 @@
       "name": "etaf-md-preview-tests-an-empty-document-accepts-typing",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "An empty file paints the row its first character goes on, so the first key of a new document reaches the source."
+    },
+    {
+      "name": "etaf-md-preview-tests-undo-reverts-a-run-of-typed-characters",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "C-/ on the page runs the source's undo, so a run of typed characters reverts in one step exactly as it does in the buffer itself."
+    },
+    {
+      "name": "etaf-md-preview-tests-selection-covers-the-source",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A mark set on the page selects the document: C-x h marks the whole source and C-w kills that region, so the page never holds a region of its own."
+    },
+    {
+      "name": "etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Front matter is shown as the document's title and subtitle, not as lines, so the page does not open with blank rows standing for it."
     }
   ]
 }

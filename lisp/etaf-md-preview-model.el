@@ -254,20 +254,29 @@ standing for the text past its last character.  An empty file gets that row."
     (dolist (block blocks)
       (let ((begin (or (plist-get block :begin) size))
             (end (or (plist-get block :end) cursor)))
-        (when (< cursor begin)
-          (push (etaf-md-preview--blank-block cursor begin) result))
+        (when (etaf-md-preview--blank-range-p text cursor begin)
+          (push (etaf-md-preview--blank-block begin cursor text) result))
         (setq cursor (max cursor end))))
     (cond ((< cursor size)
-           (push (etaf-md-preview--blank-block cursor size) result))
+           (when (etaf-md-preview--blank-range-p text cursor size)
+             (push (etaf-md-preview--blank-block size cursor text) result)))
           ((or (= size 0) (eq (aref text (1- size)) ?\n))
            (push (list :type 'blank :begin size :end (1+ size) :lines 1) result)))
     (nreverse result)))
 
-(defun etaf-md-preview--blank-block (begin end)
-  "Return a blank block covering the source BEGIN to END, one row per line.
-A stretch of blank source is a run of newlines, so its line count is the text
-it holds; the page paints exactly that many empty rows."
-  (list :type 'blank :begin begin :end end :lines (max 1 (- end begin))))
+(defun etaf-md-preview--blank-range-p (text begin end)
+  "Return non-nil when TEXT holds only blank space between BEGIN and END.
+What the blocks leave out is not necessarily blank: front matter is metadata
+the page shows as its title and subtitle rather than as lines, and painting a
+row for it would open the page with the rows the file spends on it."
+  (and (> end begin) (string-blank-p (substring text begin end))))
+
+(defun etaf-md-preview--blank-block (end begin text)
+  "Return a blank block covering TEXT between BEGIN and END, one row per line.
+An empty line is a newline, so the stretch holds as many lines as it holds
+newlines; the page paints exactly that many empty rows."
+  (list :type 'blank :begin begin :end end
+        :lines (max 1 (cl-count ?\n text :start begin :end end))))
 
 (defun etaf-md-preview--paintable-blocks (blocks text)
   "Return BLOCKS in source order with their blank stretches filled in as rows.

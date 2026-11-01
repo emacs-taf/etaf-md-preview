@@ -1128,6 +1128,58 @@ keep a stale copy of the text below it."
       (should (equal (etaf-md-preview-tests--fresh-rows "alpha beta\n\nY\n\ntail\n")
                      (etaf-md-preview-tests--page-rows preview))))))
 
+(ert-deftest etaf-md-preview-tests-undo-reverts-a-run-of-typed-characters ()
+  "`C-/' undoes the run of characters a reader typed, as it does in the buffer.
+The page does not give the key a meaning of its own: the source runs `undo',
+and because the same command ran three times on the source, Emacs folds the
+three insertions into the one undo step they are."
+  (etaf-md-preview-tests--with-preview-source "alpha beta\n"
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (goto-char (point-min))
+      (search-forward "alpha")
+      (execute-kbd-macro "xyz")
+      (should (equal "alphaxyz beta\n" (etaf-md-preview-tests--lines source)))
+      (execute-kbd-macro (kbd "C-/"))
+      (should (equal "alpha beta\n" (etaf-md-preview-tests--lines source)))
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (equal (etaf-md-preview-tests--fresh-rows "alpha beta\n")
+                     (etaf-md-preview-tests--page-rows preview))))))
+
+(ert-deftest etaf-md-preview-tests-selection-covers-the-source ()
+  "A mark set on the page selects the document, so killing removes it all.
+`C-x h' marks the whole buffer in the source and `C-w' kills the region there;
+the page only shows the result.  A page that kept its own idea of the region
+would cut a different range from the one the reader saw marked."
+  (etaf-md-preview-tests--with-preview-source "alpha beta\n\ntail\n"
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (execute-kbd-macro (kbd "C-x h"))
+      (execute-kbd-macro (kbd "C-w"))
+      (should (equal "" (etaf-md-preview-tests--lines source)))
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (equal (etaf-md-preview-tests--fresh-rows "")
+                     (etaf-md-preview-tests--page-rows preview))))))
+
+(ert-deftest etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows ()
+  "Metadata at the head of the file does not open the page with empty rows.
+Front matter is shown as the document's title and subtitle, not as lines, so
+the rows the file spends on it must not be painted as blank ones."
+  (let ((text (concat "---\ntitle: 手记\nauthor: 林隐\n---\n\n"
+                      "# 一年运维手记\n\n正文。\n")))
+    (let ((buffer (etaf-md-preview-tests--mount
+                   (etaf-md-preview-create :text text :theme 'dark))))
+      (unwind-protect
+          (progn
+            (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+            (let* ((rows (etaf-md-preview-tests--page-rows buffer))
+                   (leading (cl-loop for row in rows
+                                     while (string-empty-p row)
+                                     count row)))
+              (should (<= leading 2))
+              (should-not (cl-some (lambda (row) (string-match-p "title:" row)) rows))))
+        (kill-buffer buffer)))))
+
 (ert-deftest etaf-md-preview-tests-an-empty-document-accepts-typing ()
   "An empty file paints the row its first character goes on.
 Nothing else would give the caret a cell, so the page would refuse the very
@@ -1194,27 +1246,24 @@ page keeps its rendered shape and never receives the character itself."
       (execute-kbd-macro (kbd "<escape>"))
       (should-not (etaf-md-preview-editing-p)))))
 
-(ert-deftest etaf-md-preview-tests-line-end-follows-the-paragraph ()
-  "`C-e' on the painted page reaches the end of the paragraph it belongs to.
-The key names a document position, so it runs against the source and the
-projection places the caret back on the painted cell; the padded screen line
-never decides where it stops."
+(ert-deftest etaf-md-preview-tests-line-end-follows-the-source-line ()
+  "`C-e' on the painted page stops where it does in the source buffer.
+The page does not give the key a meaning of its own: the source's own command
+runs, so the caret lands at the end of the line the document holds -- never at
+the end of a padded screen row, and never one line further on."
   (etaf-md-preview-tests--with-preview-source
       "# Doc\n\nalpha beta gamma delta\n\ntail\n"
     (with-current-buffer preview
       (execute-kbd-macro "e")
       (goto-char (point-min))
       (search-forward "alpha beta")
-      (call-interactively (lookup-key overriding-local-map (kbd "C-e")))
-      (let ((source-end (with-current-buffer source
-                          (save-excursion
-                            (goto-char (point-min))
-                            (forward-line 2)
-                            (line-end-position)))))
-        (should (= (1- source-end)
-                   (etaf-projection-source-offset
-                    (etaf-md-preview-projection (etaf-app-state))
-                    (point)))))
+      (execute-kbd-macro (kbd "C-e"))
+      (should (= (with-current-buffer source
+                   (save-excursion
+                     (goto-char (point-min))
+                     (forward-line 2)
+                     (line-end-position)))
+                 (with-current-buffer source (point))))
       (execute-kbd-macro (kbd "<escape>")))))
 
 (ert-deftest etaf-md-preview-tests-edit-block-reparses-a-changed-heading ()
