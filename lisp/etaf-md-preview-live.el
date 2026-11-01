@@ -33,15 +33,45 @@ The page repaints asynchronously, so between keystrokes the projection still
 describes the previous paint; the anchor carries the source offset across that
 gap and keeps consecutive keystrokes advancing instead of drifting back.")
 
+(defun etaf-md-preview--block-marker-length (block text)
+  "Return how many source characters of BLOCK's marker the paint leaves out.
+A heading paints its text without the hashes that announced it, so the painted
+cells start that many characters into the block.  A bullet and a quote paint a
+replacement glyph in place of their marker, which occupies the same width, so
+their marker stays part of the mapping."
+  (when-let* ((begin (plist-get block :begin))
+              (end (plist-get block :end))
+              ((<= 0 begin end (length text))))
+    (let ((slice (substring text begin end)))
+      (if (eq (plist-get block :type) 'heading)
+          (if (string-match "\\`#+ " slice) (match-end 0) 0)
+        0))))
+
 (defun etaf-md-preview--projection-entries (session)
-  "Return SESSION's painted blocks as projection entries."
-  (let ((entries nil))
+  "Return SESSION's painted blocks as projection entries.
+Each entry starts where the block's painted text starts, which is after the
+markdown marker the render folds away."
+  (let ((entries nil)
+        (source (etaf-md-preview--live-source session))
+        (text (or (plist-get session :text) "")))
+    (when source
+      (setq text (with-current-buffer source
+                   (buffer-substring-no-properties (point-min) (point-max)))))
     (maphash (lambda (_key entry)
-               (let ((block (plist-get entry :block)))
+               (let* ((block (plist-get entry :block))
+                      (begin (plist-get block :begin))
+                      (end (plist-get block :end))
+                      (marker (etaf-md-preview--block-marker-length block text)))
                  (when-let* ((ref (plist-get entry :ref))
-                             (begin (plist-get block :begin))
-                             (end (plist-get block :end)))
-                   (push (cons ref (cons begin end)) entries))))
+                             ((integerp begin)) ((integerp end))
+                             ((< begin end)))
+                   ;; The paint draws no line break, so the block's trailing
+                   ;; newline carries no cell; leaving it in the range would
+                   ;; spread it across the text and shift every character.
+                   (when (and (> end (1+ begin))
+                              (eq (aref text (1- end)) ?\n))
+                     (setq end (1- end)))
+                   (push (cons ref (cons (+ begin (or marker 0)) end)) entries))))
              (or (plist-get session :published) (make-hash-table :test #'equal)))
     entries))
 
@@ -88,6 +118,8 @@ publishes the document the same way it does for a hand edit."
               (projection (etaf-md-preview-projection session))
               (offset (etaf-md-preview--live-offset session projection)))
     (etaf-md-preview--live-write session offset 0 text)
+    ;; The repaint that follows publishes a new page, so the caret is placed
+    ;; against that page rather than the one still on screen.
     (setq etaf-md-preview-live--anchor (cons (point) (+ offset (length text))))))
 
 (defun etaf-md-preview--live-delete (backward)
@@ -143,7 +175,15 @@ end of a paragraph instead of the end of the padded screen line."
                           (1- (point)))))))
     (when target
       (etaf-md-preview--live-place-caret session target)
-      (setq etaf-md-preview-live--anchor (cons (point) target)))))
+      ;; The caret can only stand where the page paints a cell, so the anchor
+      ;; records the offset of the painted cell, not the source offset the
+      ;; command asked for: `C-a' names the line start, but a folded marker
+      ;; leaves the caret on the line's first visible character.
+      (setq etaf-md-preview-live--anchor
+            (cons (point)
+                  (or (and projection
+                           (etaf-projection-source-offset projection (point)))
+                      target))))))
 
 (defun etaf-md-preview--live-move-command (command)
   "Return an interactive command that runs COMMAND against the source."
