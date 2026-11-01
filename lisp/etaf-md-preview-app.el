@@ -527,9 +527,25 @@ themselves."
              (name (etaf-md-preview--buffer-name file))
              (existing (get-buffer name)))
         (if (and existing (etaf-app-state existing))
-            (switch-to-buffer existing)
+            (progn
+              (switch-to-buffer existing)
+              (etaf-md-preview--edit-on-open existing editing))
           (etaf-md-preview--display (etaf-md-preview-create :file file) name
                                     editing))))))
+
+(defun etaf-md-preview--edit-on-open (buffer editing)
+  "Make BUFFER accept typing when EDITING, which names a person opening it.
+A preview already on screen is the same page as one opened now, so asking for
+it again still leaves the reader able to type."
+  (when (and editing (buffer-live-p buffer)
+             (plist-get (etaf-app-state buffer) :file))
+    (with-current-buffer buffer
+      (condition-case error
+          (etaf-md-preview-edit-document)
+        (error
+         (message "Preview opened read-only: %s"
+                  (error-message-string error))))))
+  buffer)
 
 ;;;###autoload
 (defun etaf-md-preview (&optional source)
@@ -619,13 +635,7 @@ session without one lets the Emacs theme show through."
     ;; A preview of a file is a page the reader edits, so it opens ready to
     ;; type: the caret moves and text goes to the source without a mode to
     ;; enter first.  A session without a file stays read-only.
-    (when (and editing (plist-get session :file))
-      (with-current-buffer buffer
-        (condition-case error
-            (etaf-md-preview-edit-document)
-          (error
-           (message "Preview opened read-only: %s"
-                    (error-message-string error))))))
+    (etaf-md-preview--edit-on-open buffer editing)
     buffer))
 
 (provide 'etaf-md-preview-app)
