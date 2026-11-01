@@ -361,6 +361,10 @@ without that the caret a user sees never follows the edit."
               (position (etaf-projection-position projection offset)))
     (with-current-buffer buffer
       (goto-char position)
+      ;; The page and the source agree at this moment, so the anchor records
+      ;; this pair: a stale one would move the caret back to an older place
+      ;; as soon as the next repaint settles.
+      (setq etaf-md-preview-live--anchor (cons position offset))
       (dolist (window (get-buffer-window-list buffer nil t))
         (set-window-point window position)))))
 
