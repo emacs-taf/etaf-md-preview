@@ -234,6 +234,57 @@ published entry reusable across such an edit."
         copy)
     block))
 
+(defun etaf-md-preview--gap-blocks (blocks text)
+  "Return a blank block for each stretch of blank TEXT holds between BLOCKS.
+A blank line is a line the document paints nothing on: the page would leave a
+gap where the source holds a line, so a reader who presses RET to start a
+paragraph has no row to type on and no cell to stand the caret on.  Painting
+one empty row per blank line is what keeps a source offset and the cell it is
+painted on in step, which is what lets the caret stay where the reader put it.
+
+A block's range ends after its own final newline, so every stretch the blocks
+leave uncovered is blank -- between two blocks, before the first, after the
+last.  A file that ends with a newline ends on an empty line, which is where
+RET at the end of the document puts the caret, so that position gets a row
+standing for the text past its last character.  An empty file gets that row."
+  (let* ((size (length text))
+         (blocks (or blocks nil))
+         (cursor 0)
+         (result nil))
+    (dolist (block blocks)
+      (let ((begin (or (plist-get block :begin) size))
+            (end (or (plist-get block :end) cursor)))
+        (when (< cursor begin)
+          (push (etaf-md-preview--blank-block cursor begin) result))
+        (setq cursor (max cursor end))))
+    (cond ((< cursor size)
+           (push (etaf-md-preview--blank-block cursor size) result))
+          ((or (= size 0) (eq (aref text (1- size)) ?\n))
+           (push (list :type 'blank :begin size :end (1+ size) :lines 1) result)))
+    (nreverse result)))
+
+(defun etaf-md-preview--blank-block (begin end)
+  "Return a blank block covering the source BEGIN to END, one row per line.
+A stretch of blank source is a run of newlines, so its line count is the text
+it holds; the page paints exactly that many empty rows."
+  (list :type 'blank :begin begin :end end :lines (max 1 (- end begin))))
+
+(defun etaf-md-preview--paintable-blocks (blocks text)
+  "Return BLOCKS in source order with their blank stretches filled in as rows.
+Both lists are ordered by source position already, so one merge keeps the page
+in the order the file holds."
+  (let ((blanks (etaf-md-preview--gap-blocks blocks text))
+        (result nil))
+    (while (or blocks blanks)
+      (cond
+       ((null blanks) (push (pop blocks) result))
+       ((null blocks) (push (pop blanks) result))
+       ((<= (or (plist-get (car blocks) :begin) 0)
+            (or (plist-get (car blanks) :begin) 0))
+        (push (pop blocks) result))
+       (t (push (pop blanks) result))))
+    (nreverse result)))
+
 (defun etaf-md-preview--block-entries (session document text published)
   "Return DOCUMENT's top-level blocks as keyed publishing entries.
 An entry is `(:key KEY :block BLOCK :editing FLAG :ref REF :view CALL)'.
@@ -241,6 +292,10 @@ KEY names the block's type and a digest of the block's own source, plus an
 occurrence number so two identical blocks stay distinct.  A block's source,
 not its position, is its identity: a block inserted or removed above it leaves
 every unchanged block's key, and therefore its Component instance, alone.
+
+The list also carries a blank block for every stretch of blank the file holds
+between its blocks, because the page must paint a row a reader can type on
+there; a blank row holds no source text, so its key is its place among them.
 
 PUBLISHED maps the previous publish's keys to their entries.  A block whose
 source, parsed content and editing state all survive keeps its published entry,
@@ -250,14 +305,21 @@ edited builds a fresh call: that call carries the source it shows and the
 reference the edit session opens on."
   (let ((counts (make-hash-table :test #'equal))
         (editing-key (plist-get session :editing-key))
+        (blank-index 0)
         (entries nil))
-    (dolist (block (plist-get document :children))
-      (let* ((source (or (etaf-md-preview--block-source block text) ""))
-             (digest (concat (or (and (plist-get block :type)
-                                      (symbol-name (plist-get block :type)))
-                                 "block")
-                             ":"
-                             (secure-hash 'sha1 source)))
+    (dolist (block (etaf-md-preview--paintable-blocks
+                    (plist-get document :children) text))
+      (let* ((blank (eq (plist-get block :type) 'blank))
+             (source (or (etaf-md-preview--block-source block text) ""))
+             (digest (unless blank
+                       (concat (or (and (plist-get block :type)
+                                        (symbol-name (plist-get block :type)))
+                                   "block")
+                               ":"
+                               (secure-hash 'sha1 source))))
+             ;; A blank row paints no source text, so the only thing that tells
+             ;; one from another is where it sits among the blank rows.
+             (digest (or digest (format "blank:%d" (cl-incf blank-index))))
              (occurrence (1+ (gethash digest counts 0)))
              (key (if (= 1 occurrence) digest (format "%s#%d" digest occurrence)))
              (editing (equal key editing-key))
@@ -404,7 +466,8 @@ card is playing inline."
 (defun etaf-md-preview-state (session)
   "Return SESSION's state as a detached plist snapshot.
 Keys are `:file', `:title', `:dir', `:theme', `:background', `:width',
-`:outline', `:error', `:blocks' (top-level block count) and `:footnotes'
+`:outline', `:error', `:blocks' (top-level block count, blank rows aside)
+and `:footnotes'
 \(labels).  `:background' is `palette' when the preview paints its palette's
 page background, and nil when it leaves the Emacs theme's background."
   (let ((document (etaf-md-preview--read session :document)))
@@ -418,7 +481,13 @@ page background, and nil when it leaves the Emacs theme's background."
           :width (etaf-md-preview--read session :width)
           :outline (copy-tree (plist-get document :outline))
           :error (etaf-md-preview--read session :error)
-          :blocks (length (plist-get document :children))
+          ;; The published list also carries the blank rows the page paints
+          ;; between blocks; a reader counting blocks means the document's own.
+          :blocks (cl-count-if (lambda (entry)
+                                 (not (eq (plist-get (plist-get entry :block)
+                                                     :type)
+                                          'blank)))
+                               (plist-get document :children))
           :footnotes (mapcar (lambda (footnote) (plist-get footnote :label))
                              (plist-get document :footnotes)))))
 

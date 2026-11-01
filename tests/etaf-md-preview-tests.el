@@ -1058,6 +1058,91 @@ renders it, and the source buffer holds the same text without a save."
       (should (string-match-p "ADDED plain \\*\\*bold\\*\\* text"
                               (etaf-md-preview-tests--lines source))))))
 
+(defun etaf-md-preview-tests--page-rows (buffer)
+  "Return BUFFER's painted rows, keeping every one of them."
+  (with-current-buffer buffer
+    (mapcar #'string-trim
+            (split-string (buffer-substring-no-properties
+                           (point-min) (point-max))
+                          "\n"))))
+
+(defun etaf-md-preview-tests--fresh-rows (text)
+  "Return the rows a preview of TEXT paints when it is opened fresh.
+An edited page must hold exactly these rows: the same document rendered from
+scratch is the shape a reader expects back after every keystroke."
+  (let ((buffer (etaf-md-preview-tests--mount
+                 (etaf-md-preview-create :text text :theme 'dark))))
+    (unwind-protect
+        (progn
+          (etaf-runtime-flush (etaf-runtime-for-buffer buffer))
+          (etaf-md-preview-tests--page-rows buffer))
+      (kill-buffer buffer))))
+
+(ert-deftest etaf-md-preview-tests-typing-on-a-new-line-paints-that-line ()
+  "A newline in the source reaches the page as a row the reader can type on.
+Press RET at the end of a paragraph and the page must show the line, not fold
+it into the paragraph above: a rendering that swallowed it would take the
+characters typed there into the wrong place.  A blank stretch of source is a
+row of its own for the same reason, and the page keeps exactly the lines a
+fresh render of the same markdown has."
+  (etaf-md-preview-tests--with-preview-source "alpha beta\n\ntail\n"
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (goto-char (point-min))
+      (search-forward "alpha beta")
+      (execute-kbd-macro (kbd "RET"))
+      (execute-kbd-macro "one")
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (equal "alpha beta\none\n\ntail\n"
+                     (etaf-md-preview-tests--lines source)))
+      (should (equal (etaf-md-preview-tests--fresh-rows "alpha beta\none\n\ntail\n")
+                     (etaf-md-preview-tests--page-rows preview)))
+      ;; Two RETs give two blank rows and put the caret on the second of them.
+      ;; Typing there must leave the page equal to what a fresh render paints,
+      ;; not one row longer: a page that grew a stale row would keep showing a
+      ;; copy of the text below.
+      (execute-kbd-macro (kbd "RET RET"))
+      (execute-kbd-macro "two")
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (equal "alpha beta\none\n\ntwo\n\ntail\n"
+                     (etaf-md-preview-tests--lines source)))
+      (should (equal (etaf-md-preview-tests--fresh-rows
+                      "alpha beta\none\n\ntwo\n\ntail\n")
+                     (etaf-md-preview-tests--page-rows preview))))))
+
+(ert-deftest etaf-md-preview-tests-typing-in-a-gap-keeps-the-page-shape ()
+  "Typing on the second of two blank rows leaves the page a fresh render paints.
+The row becomes a paragraph, so the blank stretch shrinks while a block
+appears in the same repaint; a page written from that change row by row would
+keep a stale copy of the text below it."
+  (etaf-md-preview-tests--with-preview-source "alpha beta\n\ntail\n"
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (goto-char (point-min))
+      (search-forward "alpha beta")
+      (execute-kbd-macro (kbd "RET RET"))
+      (execute-kbd-macro "Y")
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (equal "alpha beta\n\nY\n\ntail\n"
+                     (etaf-md-preview-tests--lines source)))
+      (should (equal (etaf-md-preview-tests--fresh-rows "alpha beta\n\nY\n\ntail\n")
+                     (etaf-md-preview-tests--page-rows preview))))))
+
+(ert-deftest etaf-md-preview-tests-an-empty-document-accepts-typing ()
+  "An empty file paints the row its first character goes on.
+Nothing else would give the caret a cell, so the page would refuse the very
+first key of a new document."
+  (etaf-md-preview-tests--with-preview-source ""
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (execute-kbd-macro "H")
+      (execute-kbd-macro (kbd "RET"))
+      (execute-kbd-macro "I")
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (should (equal "H\nI" (etaf-md-preview-tests--lines source)))
+      (should (equal (etaf-md-preview-tests--fresh-rows "H\nI")
+                     (etaf-md-preview-tests--page-rows preview))))))
+
 (ert-deftest etaf-md-preview-tests-empty-block-paints-its-source-skeleton ()
   "A block whose text is gone paints the markup that is still in the source.
 Without it the page shows a gap where the block sits, and the caret has nowhere

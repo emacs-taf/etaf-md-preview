@@ -58,15 +58,23 @@ break belongs between blocks rather than to either of them."
          (let* ((block (plist-get entry :block))
                 (begin (plist-get block :begin))
                 (end (plist-get block :end))
+                (blank (eq (plist-get block :type) 'blank))
                 (marker (etaf-md-preview--block-marker-length block text)))
-           (when (and (integerp begin) (integerp end) (< begin end) (<= end (length text)))
+           ;; A blank row paints one cell for a line whose only character is its
+           ;; newline; an empty document paints that cell for the start of an
+           ;; empty file, so this range is the one place it may name no text.
+           (cond
+            (blank
+             (when-let* ((ref (gethash key by-key)))
+               (push (cons ref (cons begin end)) entries)))
+            ((and (integerp begin) (integerp end) (< begin end) (<= end (length text)))
              (let* ((start (+ begin marker))
                     (stop (if (and (> end start) (eq (aref text (1- end)) ?\n))
                              (1- end)
                            end)))
                (when (< start stop)
                  (when-let* ((ref (gethash key by-key)))
-                   (push (cons ref (cons start stop)) entries)))))))
+                   (push (cons ref (cons start stop)) entries))))))))
        (or (plist-get session :published) (make-hash-table :test #'equal))))
     (nreverse entries)))
 

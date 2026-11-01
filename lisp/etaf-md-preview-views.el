@@ -462,12 +462,21 @@ the application can open and close the session around it."
       ;; gap where its marker still lives in the source.  Showing the marker
       ;; there is what lets a reader see what is left and type it back.
       (let ((text (etaf-md-preview--session-text session)))
-        (if (etaf-md-preview--block-empty-p block text)
-            (etaf-node 'text
-                       (list :color (etaf-md-preview--env-color env :muted)
-                             :font-family (face-attribute 'fixed-pitch :family nil t))
-                       (list (etaf-md-preview--block-marker block)))
-          (etaf-ui-markdown-view-block block env))))))
+        (cond
+         ;; A blank source line renders nothing at all, yet it is a line a
+         ;; reader types on.  One empty cell per blank line is enough for the
+         ;; caret to stand there, and one row per line keeps every source
+         ;; offset and its painted cell in step.
+         ((eq (plist-get block :type) 'blank)
+          (etaf-node 'column nil
+                     (make-list (max 1 (or (plist-get block :lines) 1))
+                                (etaf-node 'text nil (list " ")))))
+         ((etaf-md-preview--block-empty-p block text)
+          (etaf-node 'text
+                     (list :color (etaf-md-preview--env-color env :muted)
+                           :font-family (face-attribute 'fixed-pitch :family nil t))
+                     (list (etaf-md-preview--block-marker block))))
+         (t (etaf-ui-markdown-view-block block env)))))))
 
 (defun etaf-md-preview--block-view (session key block ref &optional editing)
   "Return the keyed Component call that renders BLOCK of SESSION under KEY.
@@ -485,11 +494,11 @@ render."
 
 (defun etaf-md-preview--view-blocks (entries)
   "Return published ENTRIES as one keyed block Component each.
-The list separates the blocks that render with one blank line through its
-own item gap: a block that renders nothing contributes no child and so adds
-no gap."
+Blocks are stacked without a gap of the layout's own: the blank lines the file
+holds between them are painted as empty rows, so the page keeps exactly the
+lines the source has and a reader can type on each of them."
   (etaf-node 'column
-             (list :width 'stretch :item-gap '(lh 1))
+             (list :width 'stretch)
              (mapcar (lambda (entry) (plist-get entry :view)) entries)))
 
 ;;; ---------------------------------------------------------------------------

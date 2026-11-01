@@ -249,6 +249,21 @@
       "name": "etaf-md-preview-tests-empty-block-does-not-hide-a-full-table",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "A table that still holds text paints its cells rather than its skeleton."
+    },
+    {
+      "name": "etaf-md-preview-tests-typing-on-a-new-line-paints-that-line",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "RET in the rendered page gives a row to type on and the typed text lands there; the page afterwards holds exactly the rows a fresh render of the same markdown paints."
+    },
+    {
+      "name": "etaf-md-preview-tests-typing-in-a-gap-keeps-the-page-shape",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Typing on the second of two blank rows shrinks the blank stretch while a block appears in the same repaint, and the page still matches a fresh render instead of keeping a stale copy of the text below."
+    },
+    {
+      "name": "etaf-md-preview-tests-an-empty-document-accepts-typing",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "An empty file paints the row its first character goes on, so the first key of a new document reaches the source."
     }
   ]
 }
