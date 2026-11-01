@@ -77,6 +77,24 @@ pixel size (ffprobe for videos) and the frame metrics, caps the height, and
 wraps the image in an interactive Box for opening. Missing files and remote
 URLs never reach the Host; they become labeled placeholder cards.
 
+**Typing edits the source, never the page.** In-place editing is driven by
+`etaf-md-preview-projection`, which turns the published blocks into
+`etaf-projection` entries, one `(REF . (BEGIN . END))` per block. A block's
+range ends before its trailing newline, because the paint draws no break; a
+heading starts after the `#` markers the render folds away; a bullet or quote
+keeps its marker, because the paint draws an equal-width replacement glyph in
+its place.
+
+Keys arrive at `input-method-function`, below the command loop, so an active
+input method translates them as it would in any buffer while the page itself
+stays read-only: the handler writes the source buffer and the preview repaints
+the blocks that changed. Motion commands run against the source and the
+projection maps the result back to a painted cell, which is why `C-e` stops at
+the end of a paragraph instead of the end of the padded screen line. That
+repaint is asynchronous, so between a keystroke and the repaint the projection
+still describes the previous page; an anchor carries the last painted position
+and its source offset across the gap.
+
 **Session as the only state.** There is no second copy of the outline, theme
 or document. Navigation recomputes heading positions from the live buffer on
 demand; the state snapshot copies values for tests and scripts. This keeps the
