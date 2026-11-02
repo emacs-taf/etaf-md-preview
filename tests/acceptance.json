@@ -279,6 +279,21 @@
       "name": "etaf-md-preview-tests-front-matter-is-not-painted-as-blank-rows",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Front matter is shown as the document's title and subtitle, not as lines, so the page does not open with blank rows standing for it."
+    },
+    {
+      "name": "etaf-md-preview-tests-editing-a-block-repaints-only-that-block",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A keystroke in one block leaves the page equal to a fresh render while the repaint covers only that block, because the document is parsed and repainted around the edit instead of as a whole."
+    },
+    {
+      "name": "etaf-md-preview-tests-a-merged-paragraph-paints-as-one",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Deleting the blank line between two paragraphs joins them into one block on the page, and the page equals a fresh render of the joined file."
+    },
+    {
+      "name": "etaf-md-preview-tests-a-fence-typed-in-reparses-the-whole-file",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "Typing a code fence, whose block can end far from the edit, still leaves the page equal to a fresh render of the file."
     }
   ]
 }

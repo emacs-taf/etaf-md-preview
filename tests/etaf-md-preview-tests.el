@@ -1180,6 +1180,61 @@ the rows the file spends on it must not be painted as blank ones."
               (should-not (cl-some (lambda (row) (string-match-p "title:" row)) rows))))
         (kill-buffer buffer)))))
 
+(ert-deftest etaf-md-preview-tests-editing-a-block-repaints-only-that-block ()
+  "A keystroke in one block leaves the page equal to a fresh render of the file.
+The other blocks are the same text at the same offset, so the repaint touches
+the edited block instead of the document."
+  (etaf-md-preview-tests--with-preview-source
+      "第一段 alpha。\n\n第二段 beta。\n\n第三段 gamma。\n"
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (goto-char (point-min))
+      (search-forward "alpha")
+      (execute-kbd-macro "XY")
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (let ((text (etaf-md-preview-tests--lines source)))
+        (should (equal "第一段 alphaXY。\n\n第二段 beta。\n\n第三段 gamma。\n" text))
+        (should (equal (etaf-md-preview-tests--fresh-rows text)
+                       (etaf-md-preview-tests--page-rows preview)))
+        (let ((report (etaf-runtime-update-report)))
+          (should (eq 'lines (plist-get report :strategy)))
+          (should (< (plist-get report :lines) 6)))))))
+
+(ert-deftest etaf-md-preview-tests-a-merged-paragraph-paints-as-one ()
+  "Deleting the blank line between two paragraphs joins them on the page.
+The edit changes the shape of two blocks at once, and the page must still equal
+a fresh render of the joined file."
+  (etaf-md-preview-tests--with-preview-source "第一段。\n\n第二段。\n"
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (goto-char (point-min))
+      (search-forward "第二段")
+      (goto-char (match-beginning 0))
+      (execute-kbd-macro (kbd "DEL"))
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (let ((text (etaf-md-preview-tests--lines source)))
+        (should (equal "第一段。\n第二段。\n" text))
+        (should (equal (etaf-md-preview-tests--fresh-rows text)
+                       (etaf-md-preview-tests--page-rows preview)))
+        (should (equal 1 (plist-get (etaf-md-preview-state (etaf-app-state)) :blocks)))))))
+
+(ert-deftest etaf-md-preview-tests-a-fence-typed-in-reparses-the-whole-file ()
+  "Typing a code fence leaves the page equal to a fresh render.
+A fence opens a block that can end far from the edit, so the file is parsed
+again as a whole instead of patching the region around the cursor."
+  (etaf-md-preview-tests--with-preview-source "第一段。\n\ncode line\n\n最后一段。\n"
+    (with-current-buffer preview
+      (etaf-md-preview-edit-document)
+      (goto-char (point-min))
+      (search-forward "code line")
+      (goto-char (match-beginning 0))
+      (execute-kbd-macro "```")
+      (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+      (let ((text (etaf-md-preview-tests--lines source)))
+        (should (equal "第一段。\n\n```code line\n\n最后一段。\n" text))
+        (should (equal (etaf-md-preview-tests--fresh-rows text)
+                       (etaf-md-preview-tests--page-rows preview)))))))
+
 (ert-deftest etaf-md-preview-tests-an-empty-document-accepts-typing ()
   "An empty file paints the row its first character goes on.
 Nothing else would give the caret a cell, so the page would refuse the very

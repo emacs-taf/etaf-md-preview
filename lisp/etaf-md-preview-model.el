@@ -500,6 +500,127 @@ page background, and nil when it leaves the Emacs theme's background."
           :footnotes (mapcar (lambda (footnote) (plist-get footnote :label))
                              (plist-get document :footnotes)))))
 
+(defconst etaf-md-preview--reparse-neighbours 1
+  "Unchanged blocks parsed again on each side of an edit.
+A block can change shape together with the block next to it: deleting the
+blank line between two paragraphs makes them one paragraph, so the parse has
+to see them together.")
+
+(defconst etaf-md-preview--fence-regexp "^ *\\(```\\|~~~\\)"
+  "Line start of a code fence in markdown source.")
+
+(defun etaf-md-preview--shared-start (old new)
+  "Return how many characters OLD and NEW share from the start."
+  (let ((common (min (length old) (length new))))
+    (let ((result (compare-strings old 0 common new 0 common)))
+      (if (eq result t) common (1- (abs result))))))
+
+(defun etaf-md-preview--shared-end (old new limit)
+  "Return how many characters at the end of OLD and NEW are the same, up to LIMIT."
+  (let ((low 0)
+        (high limit))
+    (while (< low high)
+      (let ((middle (/ (+ low high 1) 2)))
+        (if (eq t (compare-strings old (- (length old) middle) nil
+                                   new (- (length new) middle) nil))
+            (setq low middle)
+          (setq high (1- middle)))))
+    low))
+
+(defun etaf-md-preview--changed-span (old new)
+  "Return (OLD-START OLD-END NEW-END) naming what differs between OLD and NEW.
+Both ends are found by comparing the strings, so the cost follows the size of
+the edit rather than the size of the document."
+  (let* ((start (etaf-md-preview--shared-start old new))
+         (tail (etaf-md-preview--shared-end old new (- (min (length old) (length new)) start))))
+    (list start (- (length old) tail) (- (length new) tail))))
+
+(defun etaf-md-preview--fence-count (text from to)
+  "Return how many code fence lines TEXT holds between FROM and TO."
+  (let ((count 0)
+        (start from))
+    (while (let ((found (string-match etaf-md-preview--fence-regexp text start)))
+             (when (and found (< found to))
+               (setq count (1+ count)
+                     start (match-end 0))
+               t)))
+    count))
+
+(defun etaf-md-preview--splice-parse (session contents old-text old-document)
+  "Return OLD-DOCUMENT updated for CONTENTS, or nil when it needs a whole parse.
+The blocks before and after an edit are the same text at a shifted offset, so
+only the blocks the edit could have touched are parsed again.  A whole parse
+is needed when the edit reaches the front matter, and when it changes how many
+code fences the region holds: a fence opens a block that can end outside the
+region, and only the whole text tells where."
+  (pcase-let* ((`(,old-start ,old-end ,_)
+                (etaf-md-preview--changed-span old-text contents))
+               (delta (- (length contents) (length old-text)))
+               (children (plist-get old-document :children))
+               (count (length children)))
+    (when children
+      (let* ((first (or (cl-position-if (lambda (block)
+                                          (>= (or (plist-get block :end) 0) old-start))
+                                        children)
+                        count))
+             (after (or (cl-position-if (lambda (block)
+                                          (> (or (plist-get block :begin) 0) old-end))
+                                        children)
+                        count))
+             (head (max 0 (- first etaf-md-preview--reparse-neighbours)))
+             (tail (min count (+ after etaf-md-preview--reparse-neighbours)))
+             (from (if (> head 0) (plist-get (nth (1- head) children) :end) 0))
+             (to (if (< tail count) (plist-get (nth tail children) :begin)
+                    (length old-text)))
+             (to-new (+ to delta)))
+        (when (and (<= from old-start)
+                   (<= old-end to)
+                   (> from 0)           ; front matter holds the title
+                   (<= from to-new (length contents))
+                   (cl-evenp (etaf-md-preview--fence-count old-text from to))
+                   (cl-evenp (etaf-md-preview--fence-count contents from to-new)))
+          (let* ((fragment (etaf-md-preview--parse (substring contents from to-new)
+                                                   (plist-get session :flavor)))
+                 (middle (mapcar (lambda (block)
+                                   (let ((copy (copy-sequence block)))
+                                     (setq copy (plist-put copy :begin (+ from (plist-get block :begin))))
+                                     (plist-put copy :end (+ from (plist-get block :end)))))
+                                 (plist-get fragment :children)))
+                 (suffix (mapcar (lambda (block)
+                                   (let ((copy (copy-sequence block)))
+                                     (setq copy (plist-put copy :begin (+ delta (plist-get block :begin))))
+                                     (plist-put copy :end (+ delta (plist-get block :end)))))
+                                 (nthcdr tail children)))
+                 (spliced (append (seq-take children head) middle suffix)))
+            (when (etaf-md-preview--blocks-ordered-p spliced (length contents))
+              (plist-put (copy-sequence old-document) :children spliced))))))))
+
+(defun etaf-md-preview--blocks-ordered-p (blocks size)
+  "Return non-nil when BLOCKS name increasing ranges inside SIZE characters."
+  (let ((edge 0) (ok t))
+    (dolist (block blocks)
+      (let ((begin (plist-get block :begin))
+            (end (plist-get block :end)))
+        (unless (and (integerp begin) (integerp end)
+                     (<= edge begin) (<= begin end) (<= end size))
+          (setq ok nil))
+        (setq edge end)))
+    ok))
+
+(defun etaf-md-preview--parse-changed (session contents)
+  "Return the document CONTENTS describes, parsing only what changed.
+A preview republishes after every keystroke and parsing is the largest part of
+that cost, so the blocks the edit left alone keep the parse they already have."
+  (let* ((flavor (plist-get session :flavor))
+         (cached (plist-get session :parsed))
+         (document (cond ((null cached) (etaf-md-preview--parse contents flavor))
+                         ((equal (car cached) contents) (cdr cached))
+                         (t (or (etaf-md-preview--splice-parse
+                                 session contents (car cached) (cdr cached))
+                                (etaf-md-preview--parse contents flavor))))))
+    (plist-put session :parsed (cons contents document))
+    document))
+
 (defun etaf-md-preview--install (session contents &optional title)
   "Parse CONTENTS and publish it as SESSION's document; return the document.
 TITLE, when given, names the document instead of its own front matter or file.
@@ -510,7 +631,7 @@ while its source and parsed content survive, so one edited block repaints
 itself and every other block keeps its instance."
   (let* ((keyed (etaf-md-preview--keyed-document
                  session
-                 (etaf-md-preview--parse contents (plist-get session :flavor))
+                 (etaf-md-preview--parse-changed session contents)
                  contents
                  (plist-get session :published)))
          (document (car keyed)))
