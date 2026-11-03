@@ -39,11 +39,40 @@ typing in front of the hashes would turn the heading into a paragraph."
       (length (etaf-md-preview--block-marker block))
     0))
 
-(defun etaf-md-preview--projection-entries (session)
+(defun etaf-md-preview--entries-around (entries offset)
+  "Return the entries of ENTRIES that answer for source OFFSET.
+That is the block holding OFFSET -- or the nearest one, since a position
+between two blocks belongs to whichever the page puts the caret on -- together
+with the blocks on either side of it, because a block's painted range can reach
+past its own source and only the neighbouring runs show which cell the caret
+really stands on."
+  (let ((chosen 0)
+        (distance nil))
+    (cl-loop for entry in entries
+             for index from 0
+             for range = (cdr entry)
+             for begin = (car range)
+             for end = (cdr range)
+             for behind = (cond ((< offset begin) (- begin offset))
+                                ((>= offset end) (1+ (- offset end)))
+                                (t 0))
+             do (when (and (or (null distance) (< behind distance))
+                           (or (> behind 0) (null distance)))
+                  (setq chosen index distance behind)))
+    (when entries
+      (let ((from (max 0 (1- chosen)))
+            (to (min (length entries) (+ chosen 2))))
+        (seq-subseq entries from to)))))
+
+(defun etaf-md-preview--projection-entries (session &optional offset)
   "Return the source range each painted block of SESSION stands for.
 A block's range is the text it renders: its marker is skipped, because the
 render folds it away, and its trailing newline is dropped, because the line
-break belongs between blocks rather than to either of them."
+break belongs between blocks rather than to either of them.
+
+With OFFSET, return only the block that answers for it: a caret move lands in
+one block, and a page of a thousand blocks would otherwise be mapped on every
+key."
   (let* ((text (etaf-md-preview--session-text session))
          (by-key (make-hash-table :test #'equal))
          (entries nil))
@@ -76,7 +105,9 @@ break belongs between blocks rather than to either of them."
                  (when-let* ((ref (gethash key by-key)))
                    (push (cons ref (cons start stop)) entries))))))))
        (or (plist-get session :published) (make-hash-table :test #'equal))))
-    (nreverse entries)))
+    (nreverse (if (null offset)
+                  entries
+                (etaf-md-preview--entries-around entries offset)))))
 
 (defun etaf-md-preview-projection (session)
   "Return SESSION's painted preview as ranges of its markdown source."
@@ -175,7 +206,8 @@ the edited markdown."
     (let ((document (etaf-document-open
                      buffer
                      :source source
-                     :entries (lambda () (etaf-md-preview--projection-entries session))
+                     :entries (lambda (&optional offset)
+                                (etaf-md-preview--projection-entries session offset))
                      :republish (lambda (text)
                                   (etaf-md-preview--live-refresh session text))
                      :keymap '(("<escape>" . etaf-md-preview-exit-document)))))

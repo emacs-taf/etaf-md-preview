@@ -1238,6 +1238,24 @@ again as a whole instead of patching the region around the cursor."
         (should (equal (etaf-md-preview-tests--fresh-rows text)
                        (etaf-md-preview-tests--page-rows preview)))))))
 
+(ert-deftest etaf-md-preview-tests-caret-lands-where-the-whole-page-maps-it ()
+  "Every source offset puts the caret on the cell the whole page maps it to.
+A caret move reads only the block it lands in, so this compares that answer
+with the one the complete projection gives, offset by offset, across a heading,
+paragraphs, a list, a fenced block and the blank lines between them."
+  (etaf-md-preview-tests--with-preview-source
+      "# 标题\n\n第一段 alpha beta。\n\n- 列表一\n- 列表二 gamma\n\n```\ncode\n```\n\n尾段。\n"
+    (with-current-buffer preview
+      (let* ((document (etaf-md-preview-edit-document))
+             (text (etaf-md-preview-tests--lines source))
+             (whole (etaf-md-preview-projection (etaf-app-state)))
+             (mismatch nil))
+        (dotimes (offset (1+ (length text)))
+          (etaf-document-goto document offset)
+          (unless (= (point) (etaf-projection-position whole offset))
+            (push offset mismatch)))
+        (should-not mismatch)))))
+
 (ert-deftest etaf-md-preview-tests-an-empty-document-accepts-typing ()
   "An empty file paints the row its first character goes on.
 Nothing else would give the caret a cell, so the page would refuse the very

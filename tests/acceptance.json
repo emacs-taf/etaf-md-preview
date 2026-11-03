@@ -294,6 +294,11 @@
       "name": "etaf-md-preview-tests-a-fence-typed-in-reparses-the-whole-file",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "Typing a code fence, whose block can end far from the edit, still leaves the page equal to a fresh render of the file."
+    },
+    {
+      "name": "etaf-md-preview-tests-caret-lands-where-the-whole-page-maps-it",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "A caret move reads only the block it lands in, and every source offset still lands on the cell the complete projection maps it to."
     }
   ]
 }
