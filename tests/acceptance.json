@@ -226,6 +226,11 @@
       "purpose": "A table that still holds text paints its cells rather than its skeleton."
     },
     {
+      "name": "etaf-md-preview-tests-structural-keys-match-the-buffer",
+      "file": "tests/etaf-md-preview-tests.el",
+      "purpose": "页面上按 RET、TAB、DEL、C-k、C-y、撤销、M-DEL 等编辑键，得到的文本与同起点、同内容的原生 markdown buffer 完全一致。"
+    },
+    {
       "name": "etaf-md-preview-tests-typing-on-a-new-line-paints-that-line",
       "file": "tests/etaf-md-preview-tests.el",
       "purpose": "RET in the rendered page gives a row to type on and the typed text lands there; the page afterwards holds exactly the rows a fresh render of the same markdown paints."

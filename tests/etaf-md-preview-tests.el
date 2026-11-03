@@ -14,6 +14,7 @@
 (require 'ert)
 (require 'cl-lib)
 (require 'outline)
+(require 'markdown-mode nil t)
 (require 'etaf)
 (require 'etaf-md-preview)
 
@@ -1037,6 +1038,87 @@ visiting buffer and the file are removed afterwards."
   (with-current-buffer buffer
     (buffer-substring-no-properties (point-min) (point-max))))
 
+
+(ert-deftest etaf-md-preview-tests-structural-keys-match-the-buffer ()
+  "Every editing key produces the same text on the page as in the buffer.
+The page is a front end to the markdown source, so a key must not have a
+different effect there: the acceptance is the text, compared with the same key
+sequence sent to a plain markdown buffer that started from the same contents at
+the same offset."
+  (let ((contents "# Title\n\nA paragraph with words here.\n\n- one\n- two\n\n## Section\n\nLast line.\n")
+        (different nil))
+    (dolist (keys '("RET" "TAB" "DEL" "C-k" "C-y" "C-/"
+                    "C-e RET" "C-a DEL" "TAB TAB" "DEL DEL"
+                    "C-k C-k C-y" "C-e C-k" "C-a C-k"
+                    "M-f M-f M-DEL" "C-o" "C-t" "C-t C-/"
+                    "RET RET" "C-a TAB" "C-e C-j" "M-DEL"
+                    "C-d" "M-<"))
+      (let ((want (etaf-md-preview-tests--native-keys contents keys))
+            (got (etaf-md-preview-tests--page-keys contents keys)))
+        (unless (equal want got)
+          (push (list keys want got) different))))
+    ;; One assertion over the whole table: a failing key names itself in the
+    ;; report instead of stopping the run at the first mismatch.
+    (should-not (nreverse different))))
+
+(defun etaf-md-preview-tests--send-keys (keys)
+  "Send the space-separated key names in KEYS one at a time.
+A reader presses one key after another, so each one is a separate command
+here: `C-k C-k C-y' is three presses, not one macro event sequence."
+  (dolist (one (split-string keys " " t))
+    (execute-kbd-macro (kbd one))))
+
+(defun etaf-md-preview-tests--native-keys (contents keys)
+  "Return the text of a markdown buffer holding CONTENTS after KEYS."
+  (let ((buffer (generate-new-buffer " *etaf-md-preview-native*")))
+    (unwind-protect
+        (with-current-buffer buffer
+          (insert contents)
+          ;; The source of a markdown file is in `markdown-mode', so the
+          ;; reference text is too; without it a key such as `TAB' would mean
+          ;; something else and the comparison would be between two editors.
+          (if (fboundp 'markdown-mode)
+              (delay-mode-hooks (markdown-mode))
+            (fundamental-mode))
+          ;; Setting the mode can leave undo recording off in a scratch
+          ;; buffer; the source of a file records it, so this reference does
+          ;; too, or `C-/' would be comparing an editor without history.
+          (setq buffer-undo-list nil)
+          (set-window-buffer (selected-window) buffer)
+          (goto-char (1+ (string-match "words" contents)))
+          ;; The same priming edit on both sides, so undo has something to undo.
+          (execute-kbd-macro "ab")
+          (etaf-md-preview-tests--send-keys keys)
+          (buffer-substring-no-properties (point-min) (point-max)))
+      (kill-buffer buffer))))
+
+(defun etaf-md-preview-tests--page-keys (contents keys)
+  "Return the source text a fresh page over CONTENTS has after KEYS."
+  (let* ((file (make-temp-file "etaf-md-preview-keys-" nil ".md"))
+         (source nil)
+         (preview nil))
+    (unwind-protect
+        (progn
+          (with-temp-file file (insert contents))
+          (setq source (find-file-noselect file))
+          (setq preview (etaf-md-preview-open file))
+          (with-current-buffer preview
+            (etaf-runtime-flush (etaf-runtime-for-buffer preview))
+            (set-window-buffer (selected-window) preview)
+            ;; The page's own point is where the reader is: the caret follows
+            ;; it, so the keys start from the same word on both sides.
+            (goto-char (point-min))
+            (search-forward "words")
+            (backward-char 5)
+            (execute-kbd-macro "ab")
+            (etaf-md-preview-tests--send-keys keys)
+            (etaf-document-settle preview)
+            (etaf-md-preview-tests--lines source)))
+      (when (buffer-live-p preview) (kill-buffer preview))
+      (when (buffer-live-p source)
+        (with-current-buffer source (set-buffer-modified-p nil))
+        (kill-buffer source))
+      (delete-file file))))
 
 (ert-deftest etaf-md-preview-tests-typing-on-a-new-line-paints-that-line ()
   "A newline in the source reaches the page as a row the reader can type on.
