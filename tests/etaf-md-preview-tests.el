@@ -1059,7 +1059,10 @@ renders it, and the source buffer holds the same text without a save."
                               (etaf-md-preview-tests--lines source))))))
 
 (defun etaf-md-preview-tests--page-rows (buffer)
-  "Return BUFFER's painted rows, keeping every one of them."
+  "Return BUFFER's painted rows, keeping every one of them.
+The page repaints on the next frame after a key, so the rows come from the
+repaint this asks for: a test reads the page as a reader who stopped typing."""
+  (etaf-document-settle buffer)
   (with-current-buffer buffer
     (mapcar #'string-trim
             (split-string (buffer-substring-no-properties
