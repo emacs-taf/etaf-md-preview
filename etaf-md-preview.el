@@ -60,8 +60,9 @@
 ;; buffer is selected instead of rendered twice.  Opening a session mounts
 ;; that session, so callers can render a document they built themselves.  The
 ;; buffer is an ETAF application (`etaf-app-open') whose root keys add outline
-;; navigation, reloading, theming and closing; the reading measure starts from
-;; the showing window and later resizes reflow through the framework's viewport
+;; navigation, reloading, theming and closing, on the `C-c' prefix because the
+;; page takes typing as soon as it opens; the reading measure starts from the
+;; showing window and later resizes reflow through the framework's viewport
 ;; update, so the document is never rebuilt for a window geometry change.
 ;; A preview opened from a file follows it: an unsaved edit in its buffer
 ;; repaints the document on the next frame, so the render keeps up with the
@@ -69,10 +70,11 @@
 ;; changing it on disk from another program repaints it the same way.  Each
 ;; top-level block is its own Component, published under a key that names the
 ;; block's type and source, so a repaint renders the block that changed and
-;; leaves the others' output and instances alone.  The root key `e' edits the
-;; block at point in place (`etaf-md-preview-edit-block').  Closing the buffer
-;; releases the session's Runtime, its watch, the buffer's change hook, so
-;; reopening the same file renders a fresh preview.
+;; leaves the others' output and instances alone.  A preview of a file opens
+;; ready to type, through the one mount path every entry command shares, so
+;; opening a preview means the same thing however it was called.  Closing the
+;; buffer releases the session's Runtime, its watch, the buffer's change hook,
+;; so reopening the same file renders a fresh preview.
 ;;
 ;; Function: etaf-md-preview-close ()
 ;;;###autoload (autoload 'etaf-md-preview-close "etaf-md-preview" nil t)
@@ -81,31 +83,18 @@
 ;; opened beside its source closes back onto the source.  Signals `user-error'
 ;; when the current buffer is not a preview.
 ;;
-;; Function: etaf-md-preview-edit-block ()
-;;;###autoload (autoload 'etaf-md-preview-edit-block "etaf-md-preview" nil t)
-;; Edit the block at point as its markdown source; the root key `e' runs it.
-;; The block replaces its render with the text it was parsed from, and a native
-;; edit session opens on that text: the caret, motion, selection, kill ring,
-;; undo and input methods are the buffer's own, and every change is written
-;; back to the source buffer as it is typed, so the file never disagrees with
-;; the preview.  `ESC' ends the session and renders the block again from the
-;; text as it now stands, which is how a block changes kind: deleting a
-;; heading's marker leaves a paragraph, and an added blank line splits a
-;; paragraph in two.  A click outside the block ends the session the same way,
-;; and an outside change to the file ends it before the document is
-;; republished.  The source buffer keeps one undo step per visit.
-;; Signals `user-error' when the point is on no block of a preview.
-;;
 ;; Function: etaf-md-preview-edit-document ()
 ;;;###autoload (autoload 'etaf-md-preview-edit-document "etaf-md-preview" nil t)
-;; Type into the source from the painted page; the root key `e' runs it.
-;; The page stays read-only: keys arrive as events below the command loop, edit
-;; the markdown source and let the preview repaint the blocks that changed, so
-;; the page always shows a rendering and never the characters being typed.  The
-;; caret is the buffer's own and moves over the painted cells natively, so
-;; arrow keys, Home/End and an input method behave as they do anywhere.
-;; `ESC' returns the page to navigation.  Signals `user-error' when the preview
-;; has no source file or is not mounted.
+;; Accept typing on the painted page, and write what is typed into its source.
+;; A preview of a file already runs this when it opens, so calling it again
+;; only reports whether the page is editable.  The page stays a rendering:
+;; keys arrive as events below the command loop, edit the markdown source and
+;; let the preview repaint the blocks that changed, so the page never holds
+;; the characters being typed.  The caret is the buffer's own and moves over
+;; the painted cells natively, so arrow keys, Home/End and an input method
+;; behave as they do anywhere.  Editing ends with the buffer: the source is
+;; saved then, and on idle while the page stays open.  Signals `user-error'
+;; when the preview has no source file or is not mounted.
 ;;
 ;; Function: etaf-md-preview-projection (session)
 ;;;###autoload (autoload 'etaf-md-preview-projection "etaf-md-preview" nil nil)

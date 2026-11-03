@@ -186,9 +186,9 @@
       "purpose": "An unknown dialect name is reported instead of guessed."
     },
     {
-      "name": "etaf-md-preview-tests-keys-win-over-renderer-scrolling",
+      "name": "etaf-md-preview-tests-outline-keys-live-on-the-prefix",
       "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "The n, p and q keys walk headings and close the preview through the command loop instead of the renderer's scrolling keys."
+      "purpose": "大纲键是根 Host 键，但页面接受打字，所以它们在 C-c C-m 这个模式前缀下：C-c C-m n / p 走标题、C-c C-m q 关闭预览，不遮蔽用户已有的 C-c 加字母绑定。"
     },
     {
       "name": "etaf-md-preview-tests-palette-paints-the-canvas",
@@ -201,39 +201,14 @@
       "purpose": "An unsaved edit in the source buffer repaints the block it changed: the published buffer patch covers that block's lines while the rest of a long document keeps its text, because every top-level block is published as its own Component."
     },
     {
-      "name": "etaf-md-preview-tests-edit-block-writes-back-every-keystroke",
+      "name": "etaf-md-preview-tests-a-file-preview-accepts-typing-at-once",
       "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "Typing in a block shows its markdown source, writes every keystroke into the source buffer, and renders the block again when the session ends."
+      "purpose": "打开文件预览即可打字：每条入口命令都走同一个挂载路径，没有要先进入的编辑态；按键写进 markdown 源，页面只显示重画后的渲染。"
     },
     {
-      "name": "etaf-md-preview-tests-edit-block-reparses-a-changed-heading",
+      "name": "etaf-md-preview-tests-view-keys-stay-reachable-while-typing",
       "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "Deleting a heading's marker while editing reparses the block as a paragraph, so the rendered document and the outline both change."
-    },
-    {
-      "name": "etaf-md-preview-tests-edit-block-keeps-the-blank-line-after-it",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "Replacing a block's source keeps the newline that closes the block, so a visit that adds no newline never joins the next block."
-    },
-    {
-      "name": "etaf-md-preview-tests-edit-block-opens-from-a-padded-line",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "The edit command finds the block under the point from any column of its rendered line, including the padding outside the block's box."
-    },
-    {
-      "name": "etaf-md-preview-tests-edit-block-undoes-as-one-visit",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "One undo in the source buffer reverts everything one visit to a block wrote, instead of one character at a time."
-    },
-    {
-      "name": "etaf-md-preview-tests-edit-block-survives-a-republish",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "Publishing the document again while a block is edited keeps the text the session holds instead of replacing it with the last parse's."
-    },
-    {
-      "name": "etaf-md-preview-tests-edit-key-opens-in-place-editing",
-      "file": "tests/etaf-md-preview-tests.el",
-      "purpose": "The e key types into the source without changing the painted page."
+      "purpose": "编辑中的预览仍能用 C-c C-m n / p 走标题，且不把字母打进文件；裸字母仍归文档。"
     },
     {
       "name": "etaf-md-preview-tests-line-end-follows-the-source-line",

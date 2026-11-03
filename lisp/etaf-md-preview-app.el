@@ -37,21 +37,24 @@ An in-place edit uses it to put the caret back on the repainted page; the hook
 runs after the publication, so a handler reads the new document.")
 
 (declare-function etaf-md-preview-edit-document "etaf-md-preview-live" ())
+(declare-function etaf-md-preview--live-refresh "etaf-md-preview-live" (session text))
 
 (defconst etaf-md-preview--keys
-  '(("n" etaf-md-preview-next-heading "下一个标题")
-    ("p" etaf-md-preview-previous-heading "上一个标题")
-    ("C-c j" etaf-md-preview-goto-heading "选择标题")
-    ("e" etaf-md-preview-edit-document "就地编辑")
-    ("r" etaf-md-preview-reload "重新加载文档")
-    ("t" etaf-md-preview--cycle-theme-command "切换主题")
-    ("[" etaf-md-preview-narrower "缩窄阅读栏")
-    ("]" etaf-md-preview-wider "加宽阅读栏")
-    ("C-c h" etaf-help "查看快捷键")
-    ("q" etaf-md-preview-close "关闭预览"))
+  '(("C-c C-m n" etaf-md-preview-next-heading "下一个标题")
+    ("C-c C-m p" etaf-md-preview-previous-heading "上一个标题")
+    ("C-c C-m j" etaf-md-preview-goto-heading "选择标题")
+    ("C-c C-m r" etaf-md-preview-reload "重新加载文档")
+    ("C-c C-m t" etaf-md-preview--cycle-theme-command "切换主题")
+    ("C-c C-m [" etaf-md-preview-narrower "缩窄阅读栏")
+    ("C-c C-m ]" etaf-md-preview-wider "加宽阅读栏")
+    ("C-c C-m h" etaf-help "查看快捷键")
+    ("C-c C-m q" etaf-md-preview-close "关闭预览"))
   "Root keys of a preview opened by `etaf-md-preview-open'.
-Native scrolling, isearch and link activation stay available; the keys only
-add outline navigation, reloading, theming and closing.")
+The page accepts typing as soon as it opens, so a key that only changes the
+view cannot sit on a bare letter.  They live under `C-c C-m' instead, the
+namespace a major mode takes for its own, because `C-c' and one letter belongs
+to the user: a preview must not shadow a binding the reader already has.
+Native scrolling and isearch stay available as they are.")
 
 (defun etaf-md-preview--current-session ()
   "Return the preview session of the current buffer."
@@ -270,6 +273,9 @@ A session created from text has no file, so it never follows anything."
       (puthash file session etaf-md-preview--follow-sessions)
       (etaf-md-preview--follow-watch file)
       (etaf-md-preview--live-start session)
+      ;; The mount already published this text, so a follow that finds it
+      ;; unchanged has nothing to repaint.
+      (plist-put session :live-text (etaf-md-preview--session-text session))
       (add-hook 'after-save-hook #'etaf-md-preview--follow-saved t))))
 
 (defun etaf-md-preview--follow-unregister (file)
@@ -305,153 +311,20 @@ any other reactive change does: forcing a flush or moving the reading window
 from the timer that runs here re-enters the update while a redisplay is
 pending, and that spins instead of settling."
   (remhash file etaf-md-preview--follow-timers)
-  ;; An outside change wins over an open session: what the session holds is
-  ;; already written to the source buffer, so ending it loses nothing.
-  (when-let* ((editing (gethash file etaf-md-preview--follow-sessions)))
-    (etaf-md-preview--edit-finish editing))
   (when-let* ((session (gethash file etaf-md-preview--follow-sessions))
               (buffer (plist-get session :buffer))
               ((buffer-live-p buffer)))
     (condition-case error
-        (let ((source (plist-get session :source-buffer)))
-          (if (buffer-live-p source)
-              (etaf-md-preview--publish
-               session
-               (with-current-buffer source
-                 (buffer-substring-no-properties (point-min) (point-max))))
-            (etaf-md-preview-refresh session)))
+        (let ((text (etaf-md-preview--session-text session)))
+          ;; A page that accepts typing repaints the block it changed as the
+          ;; key goes, and that same write schedules this follow: finding the
+          ;; text it already shows means there is nothing left to draw.
+          (unless (equal text (plist-get session :live-text))
+            (etaf-md-preview--live-refresh session text)
+            (run-hook-with-args 'etaf-md-preview-after-repaint-functions session)))
       (etaf-md-preview-error
        (message "Preview kept its last render: %s"
-                (error-message-string error))))
-    (run-hook-with-args 'etaf-md-preview-after-repaint-functions session)))
-
-;;; ---------------------------------------------------------------------------
-;;; Editing a block in place
-;;; ---------------------------------------------------------------------------
-
-(defun etaf-md-preview--block-at-point (session)
-  "Return the key of the block the point sits in, or nil.
-Every block is published inside a box whose reference the session maps back to
-the block's key, so the lookup walks out from the text under the point.  The
-rendered line carries padding outside those boxes, so a point in that padding
-falls back to the rest of its line."
-  (let* ((runtime (etaf-runtime-for-buffer (current-buffer)))
-         (refs (plist-get session :block-refs)))
-    (when (and runtime refs)
-      (let ((block (lambda (position)
-                     (when-let* ((ref (etaf-host-ref-at
-                                       runtime position
-                                       (lambda (ref) (gethash ref refs)))))
-                       (gethash ref refs)))))
-        (or (funcall block (point))
-            (save-excursion
-              (goto-char (line-beginning-position))
-              (catch 'found
-                (while (< (point) (line-end-position))
-                  (when-let* ((key (funcall block (point))))
-                    (throw 'found key))
-                  (forward-char 1))
-                nil)))))))
-
-(defun etaf-md-preview--edit-command ()
-  "End the open edit session."
-  (interactive)
-  (when-let* ((session (ignore-errors (etaf-app-state))))
-    (etaf-md-preview--edit-finish session)))
-
-(defun etaf-md-preview--edit-keymap ()
-  "Return the keymap the edit session consults before its own editing keys."
-  (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "ESC") #'etaf-md-preview--edit-command)
-    map))
-
-(defun etaf-md-preview--edit-changed (session value)
-  "Write VALUE back over SESSION's editing block in its source buffer.
-The write is marked as the preview's own, so the follow hook leaves it alone:
-the session is already showing it."
-  (let* ((edit (plist-get session :edit))
-         (buffer (plist-get session :source-buffer))
-         (begin (plist-get edit :begin))
-         (end (plist-get edit :end))
-         (text (substring-no-properties value)))
-    (when (and edit (buffer-live-p buffer) (integerp begin))
-      (with-current-buffer buffer
-        (let ((etaf-md-preview--writing-back t))
-          ;; One keystroke is one undo step: the delete and the insert that
-          ;; replace the block's source belong to the same change group.
-          (atomic-change-group
-            (goto-char (min begin (point-max)))
-            (delete-region begin (min end (point-max)))
-            (goto-char (min begin (point-max)))
-            (insert text))))
-      (plist-put edit :end (+ begin (length text)))
-      (plist-put session :editing-source text))))
-
-(defun etaf-md-preview--edit-start (session key)
-  "Show block KEY of SESSION as its source and edit it in place.
-The block is published again with its own source in one text host, and a
-native edit session opens on that host: the caret, motion, selection, undo,
-kill and input methods are the buffer's own.  Every change is written back to
-the source buffer as it happens, so the two views never disagree."
-  (etaf-md-preview--edit-finish session)
-  (let* ((buffer (plist-get session :source-buffer))
-         (preview (plist-get session :buffer))
-         (runtime (and (buffer-live-p preview) (etaf-runtime-for-buffer preview)))
-         (entry (and key (gethash key (plist-get session :published))))
-         (block (plist-get entry :block))
-         (begin (plist-get block :begin))
-         (end (plist-get block :end))
-         (trailing (cdr (etaf-md-preview--edit-slice
-                         (etaf-md-preview--block-source
-                          block (with-current-buffer buffer
-                                  (buffer-substring-no-properties
-                                   (point-min) (point-max))))))))
-    (unless (and runtime (buffer-live-p buffer) (integerp begin) (integerp end))
-      (user-error "This block cannot be edited in place"))
-    (with-current-buffer buffer (undo-boundary))
-    (plist-put session :editing-key key)
-    (etaf-md-preview--publish
-     session (with-current-buffer buffer
-               (buffer-substring-no-properties (point-min) (point-max))))
-    (etaf-runtime-flush runtime)
-    (let ((opened (etaf-input-begin
-                   runtime etaf-md-preview--edit-ref
-                   :caret 0
-                   :keymap (etaf-md-preview--edit-keymap)
-                   :on-change (lambda (value)
-                                (etaf-md-preview--edit-changed session value))
-                   :on-leave (lambda () (etaf-md-preview--edit-finish session)))))
-      (plist-put session :edit (list :begin (1+ begin)
-                                     :end (1+ (- end trailing))
-                                     :session opened)))
-    session))
-
-(defun etaf-md-preview--edit-finish (session)
-  "End SESSION's edit session, if any, and render the block again."
-  (when (plist-get session :edit)
-    (ignore-errors (etaf-input-end (plist-get (plist-get session :edit) :session)))
-    (plist-put session :edit nil)
-    (plist-put session :editing-key nil)
-    (plist-put session :editing-source nil)
-    (let ((buffer (plist-get session :source-buffer)))
-      (when (buffer-live-p buffer)
-        (etaf-md-preview--publish
-         session (with-current-buffer buffer
-                   (buffer-substring-no-properties (point-min) (point-max)))))))
-  session)
-
-(defun etaf-md-preview-edit-block ()
-  "Edit the block at point as its markdown source.
-The block shows the text it was parsed from, with the caret, motion,
-selection, undo and input methods of an ordinary buffer, and every change goes
-back into the source buffer at once.  `Esc', a click outside the block, or
-ending the preview renders it again."
-  (interactive)
-  (let* ((session (etaf-md-preview--current-session))
-         (key (etaf-md-preview--block-at-point session)))
-    (unless key
-      (user-error "No markdown block under the point"))
-    (etaf-md-preview--edit-start session key)))
+                (error-message-string error))))))
 
 (etaf-define-component etaf-md-preview-app (&key session)
   "Render the markdown preview for SESSION and own its lifecycle.
@@ -518,26 +391,24 @@ themselves."
           (when (and buffer-file-name
                      (string-match-p "\\.\\(md\\|markdown\\|mdown\\|mkd\\)\\'" buffer-file-name))
             (file-relative-name buffer-file-name default-directory)))))
-  (let ((editing (called-interactively-p 'any)))
-    (if (and (listp source) (etaf-ref-p (plist-get source :document)))
-        (etaf-md-preview--display source
-                                  (etaf-md-preview--buffer-name-for-session source)
-                                  editing)
-      (let* ((file (expand-file-name source))
-             (name (etaf-md-preview--buffer-name file))
-             (existing (get-buffer name)))
-        (if (and existing (etaf-app-state existing))
-            (progn
-              (switch-to-buffer existing)
-              (etaf-md-preview--edit-on-open existing editing))
-          (etaf-md-preview--display (etaf-md-preview-create :file file) name
-                                    editing))))))
+  (if (and (listp source) (etaf-ref-p (plist-get source :document)))
+      (etaf-md-preview--display source
+                                (etaf-md-preview--buffer-name-for-session source))
+    (let* ((file (expand-file-name source))
+           (name (etaf-md-preview--buffer-name file))
+           (existing (get-buffer name)))
+      (if (and existing (etaf-app-state existing))
+          (progn
+            (switch-to-buffer existing)
+            (etaf-md-preview--edit-on-open existing))
+        (etaf-md-preview--display (etaf-md-preview-create :file file) name)))))
 
-(defun etaf-md-preview--edit-on-open (buffer editing)
-  "Make BUFFER accept typing when EDITING, which names a person opening it.
-A preview already on screen is the same page as one opened now, so asking for
-it again still leaves the reader able to type."
-  (when (and editing (buffer-live-p buffer)
+(defun etaf-md-preview--edit-on-open (buffer)
+  "Make BUFFER accept typing when it shows a file's markdown.
+Every entry command ends here, so a preview opened from a file is editable
+whichever way it was opened.  A session built from text alone has no source
+to write to and stays read-only."
+  (when (and (buffer-live-p buffer)
              (plist-get (etaf-app-state buffer) :file))
     (with-current-buffer buffer
       (condition-case error
@@ -569,19 +440,12 @@ window layout gives way to those two panes, the point stays in the source, and
     (delete-other-windows)
     (switch-to-buffer buffer)
     (select-window (split-window-right))
-    (let ((preview (etaf-md-preview-open file)))
-      ;; The preview beside the source is a page the reader edits as well:
-      ;; opening it through this command is still a person opening a preview,
-      ;; even though the call itself comes from Lisp.
-      (when (and (buffer-live-p preview) (plist-get (etaf-app-state preview) :file))
-        (with-current-buffer preview
-          (condition-case error
-              (etaf-md-preview-edit-document)
-            (error
-             (message "Preview opened read-only: %s"
-                      (error-message-string error))))))
-      (when-let* ((window (get-buffer-window buffer t)))
-        (select-window window)))))
+    ;; The preview beside the source is the same page as one opened alone, so
+    ;; the window arrangement is the only difference; opening it editable is
+    ;; the mount path's job.
+    (etaf-md-preview-open file)
+    (when-let* ((window (get-buffer-window buffer t)))
+      (select-window window))))
 
 (defun etaf-md-preview--buffer-name-for-session (session)
   "Return the preview buffer name for SESSION."
@@ -589,11 +453,11 @@ window layout gives way to those two panes, the point stays in the source, and
       (etaf-md-preview--buffer-name file)
     "*ETAF Markdown*"))
 
-(defun etaf-md-preview--display (session name &optional editing)
+(defun etaf-md-preview--display (session name)
   "Open SESSION as the application buffer NAME and return that buffer.
-EDITING makes the page accept typing as soon as it opens, which is what a
-person opening a preview expects; a programmatic mount leaves the page in
-navigation so the caller decides when editing starts.
+A preview of a file is a page the reader edits, so it opens ready to type:
+the session starts on the mount path every entry command shares, which is what
+makes opening a preview mean the same thing however it was called.
 The showing window sets the initial reading measure only; later resizes
 reflow the viewport-relative column without changing it, so a width chosen
 with `[' and `]' survives them.  Cells the page does not paint, such as the
@@ -613,14 +477,12 @@ session without one lets the Emacs theme show through."
                        (plist-put session :buffer (current-buffer))
                        (etaf-md-preview--fit-width session)))
            :on-close (lambda ()
-                       (etaf-md-preview--edit-finish session)
                        (etaf-md-preview--follow-unregister (plist-get session :file))
                        (plist-put session :buffer nil)))))
     (plist-put session :buffer buffer)
     (etaf-md-preview--follow-register session)
     (add-hook 'kill-buffer-hook
               (lambda ()
-                (etaf-md-preview--edit-finish session)
                 (etaf-md-preview--follow-unregister (plist-get session :file)))
               t t)
     (with-current-buffer buffer
@@ -635,7 +497,7 @@ session without one lets the Emacs theme show through."
     ;; A preview of a file is a page the reader edits, so it opens ready to
     ;; type: the caret moves and text goes to the source without a mode to
     ;; enter first.  A session without a file stays read-only.
-    (etaf-md-preview--edit-on-open buffer editing)
+    (etaf-md-preview--edit-on-open buffer)
     buffer))
 
 (provide 'etaf-md-preview-app)

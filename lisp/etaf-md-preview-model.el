@@ -205,20 +205,6 @@ if it had content and keep that paint."
          (_ (when text
               (etaf-md-preview--blank-p (etaf-md-preview--block-content block text)))))))
 
-(defun etaf-md-preview--edit-slice (source)
-  "Return (TEXT . TRAILING-NEWLINES) for SOURCE as shown in an edit session.
-TEXT drops the block's final newline and counts it in TRAILING-NEWLINES, so
-the write-back keeps the blank line that separates the block from the next
-one, whatever the editor leaves at the end."
-  (if (and (stringp source) (string-suffix-p "\n" source))
-      (cons (substring source 0 -1) 1)
-    (cons (or source "") 0)))
-
-(defconst etaf-md-preview--edit-ref 'etaf-md-preview-edit-raw
-  "Host reference of the single block shown as source while it is edited.
-One block is edited at a time, so one stable reference serves every session and
-the Runtime can report the host the session opens on.")
-
 (defconst etaf-md-preview--block-ref-prefix "etaf-md-preview-block-"
   "Prefix of the symbol naming a block's box for point-to-block lookup.")
 
@@ -296,7 +282,7 @@ in the order the file holds."
 
 (defun etaf-md-preview--block-entries (session document text published)
   "Return DOCUMENT's top-level blocks as keyed publishing entries.
-An entry is `(:key KEY :block BLOCK :editing FLAG :ref REF :view CALL)'.
+An entry is `(:key KEY :block BLOCK :ref REF :view CALL)'.
 KEY names the block's type and a digest of the block's own source, plus an
 occurrence number so two identical blocks stay distinct.  A block's source,
 not its position, is its identity: a block inserted or removed above it leaves
@@ -307,13 +293,10 @@ between its blocks, because the page must paint a row a reader can type on
 there; a blank row holds no source text, so its key is its place among them.
 
 PUBLISHED maps the previous publish's keys to their entries.  A block whose
-source, parsed content and editing state all survive keeps its published entry,
-CALL included, so its instance keeps its Scope, Hosts and video handles, and
-the list costs one comparison for it instead of a new call.  The block being
-edited builds a fresh call: that call carries the source it shows and the
-reference the edit session opens on."
+source and parsed content both survive keeps its published entry, CALL
+included, so its instance keeps its Scope, Hosts and video handles, and the
+list costs one comparison for it instead of a new call."
   (let ((counts (make-hash-table :test #'equal))
-        (editing-key (plist-get session :editing-key))
         (blank-index 0)
         (entries nil))
     (dolist (block (etaf-md-preview--paintable-blocks
@@ -331,32 +314,20 @@ reference the edit session opens on."
              (digest (or digest (format "blank:%d" (cl-incf blank-index))))
              (occurrence (1+ (gethash digest counts 0)))
              (key (if (= 1 occurrence) digest (format "%s#%d" digest occurrence)))
-             (editing (equal key editing-key))
              (ref (make-symbol etaf-md-preview--block-ref-prefix))
              (old (and published (gethash key published)))
              (same (and old
                         (equal (etaf-md-preview--rendered-block
                                 (plist-get old :block))
-                               (etaf-md-preview--rendered-block block))
-                        (eq (and (plist-get old :editing) t) editing))))
+                               (etaf-md-preview--rendered-block block)))))
         (puthash digest occurrence counts)
         (push (cond
                ;; Only the call is retained: the block itself is the freshly
                ;; parsed one, so its source offsets follow an edit above it.
-               (same (list :key key :block block :editing nil
+               (same (list :key key :block block
                            :ref (plist-get old :ref)
                            :view (plist-get old :view)))
-               (editing (list :key key :block block :editing t
-                              :ref ref
-                              :view (etaf-md-preview--block-view
-                                     session key block ref
-                                     (list :source (car (etaf-md-preview--edit-slice
-                                                         (or (plist-get
-                                                              session
-                                                              :editing-source)
-                                                             source)))
-                                           :ref etaf-md-preview--edit-ref))))
-               (t (list :key key :block block :editing nil
+               (t (list :key key :block block
                         :ref ref
                         :view (etaf-md-preview--block-view
                                session key block ref))))
@@ -420,11 +391,6 @@ plist may toggle individual extensions."
                         ;; Publishing entries of the last parse, keyed by block
                         ;; identity; an unchanged block keeps its entry.
                         :published nil
-                        ;; The block shown as source, its slice, and the live
-                        ;; native edit session while one is open.
-                        :editing-key nil
-                        :editing-source nil
-                        :edit nil
                         ;; Box reference to block key, so a command can find
                         ;; the block the point sits in.
                         :block-refs (make-hash-table :test #'eq)
@@ -657,11 +623,13 @@ itself and every other block keeps its instance."
   "Re-read and re-parse SESSION's document.
 Return SESSION.  A read failure signals `etaf-md-preview-error' and leaves the
 published document untouched."
-  (let ((file (plist-get session :file)))
-    (etaf-md-preview--publish
-     session
-     (if file (etaf-md-preview--read-source file)
-       (or (plist-get session :text) "")))))
+  (let* ((file (plist-get session :file))
+         (text (if file (etaf-md-preview--read-source file)
+                 (or (plist-get session :text) ""))))
+    (etaf-md-preview--publish session text)
+    ;; See `etaf-md-preview--live-repaint': a scheduled follow compares against
+    ;; the text the page already shows.
+    (plist-put session :live-text text)))
 
 (defun etaf-md-preview-set-theme (session theme)
   "Show SESSION with palette THEME; return SESSION.

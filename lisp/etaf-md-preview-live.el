@@ -137,7 +137,11 @@ key."
 
 (defun etaf-md-preview--live-repaint (session)
   "Redraw SESSION's page from its markdown, now."
-  (etaf-md-preview--publish session (etaf-md-preview--session-text session))
+  (let ((text (etaf-md-preview--session-text session)))
+    (etaf-md-preview--publish session text)
+    ;; The text this page now shows, so a scheduled follow that finds the same
+    ;; text knows there is nothing left to draw.
+    (plist-put session :live-text text))
   (when-let* ((buffer (plist-get session :buffer))
               (runtime (and (buffer-live-p buffer)
                             (etaf-runtime-for-buffer buffer))))
@@ -173,18 +177,6 @@ Interactively it deletes backwards; with BACKWARD nil it deletes forwards."
   (interactive "P")
   (etaf-document-delete-char (if backward t (not (called-interactively-p 'any)))))
 
-(defun etaf-md-preview-exit-document ()
-  "Return the painted page to navigation and save the markdown."
-  (interactive)
-  (when etaf-md-preview-live--session
-    (when etaf-md-preview-live--document
-      (etaf-document-close etaf-md-preview-live--document)
-      (setq etaf-md-preview-live--document nil))
-    ;; Editing ended, so the page follows the file's buffer again: a change made
-    ;; anywhere else still reaches the page.
-    (etaf-md-preview--live-start etaf-md-preview-live--session)
-    (setq etaf-md-preview-live--session nil)))
-
 (defun etaf-md-preview-edit-document ()
   "Type into the markdown source from the painted page.
 The page stays read-only: a key names a cell, the projection turns it into a
@@ -199,10 +191,6 @@ the edited markdown."
     (unless (and (buffer-live-p buffer) (etaf-runtime-for-buffer buffer))
       (user-error "This preview is not mounted"))
     (setq etaf-md-preview-live--session session)
-    ;; The page repaints itself after every key it forwards, so the follower
-    ;; that repaints on a buffer change would repeat the same work for the same
-    ;; text: one keystroke would cost two whole-page repaints.
-    (etaf-md-preview--live-stop (plist-get session :file))
     (let ((document (etaf-document-open
                      buffer
                      :source source
@@ -210,7 +198,11 @@ the edited markdown."
                                 (etaf-md-preview--projection-entries session offset))
                      :republish (lambda (text)
                                   (etaf-md-preview--live-refresh session text))
-                     :keymap '(("<escape>" . etaf-md-preview-exit-document)))))
+                     ;; The view keys stay reachable while the page types: a
+                     ;; sequence the markdown source has no command for is the
+                     ;; application's, and this is where it is looked up.
+                     :keymap (mapcar (lambda (entry) (cons (car entry) (nth 1 entry)))
+                                     etaf-md-preview--keys))))
       (setq etaf-md-preview-live--document document)
       ;; A reader who is already somewhere on the page keeps that place; only a
       ;; page that has not been pointed at yet starts at the top of the file.

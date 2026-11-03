@@ -426,38 +426,17 @@ as a bordered placeholder that opens in the browser."
 (declare-function etaf-md-preview--session-text "etaf-md-preview-model" (session))
 (declare-function etaf-md-preview--card-env "etaf-md-preview-model" (session env scope))
 
-(etaf-define-component etaf-md-preview-block (&key session identity block editing)
+(etaf-define-component etaf-md-preview-block (&key session identity block)
   "Render one published markdown BLOCK of SESSION under IDENTITY.
 The Component owns one block's hosts, and reads the session's environment in
 its own render.  Publishing another block, or a new value for this one,
 therefore replaces only the changed block's output: a block whose published
 call is unchanged never renders again, so its Scope, hosts and video handles
-stay.
-
-EDITING, when non-nil, replaces the render with the source the block was
-parsed from, as `(:source STRING :ref REF)'.  A native edit session needs one
-text host that holds that source, and the Runtime reports it through REF so
-the application can open and close the session around it."
+stay."
   :render
   (let ((env (etaf-md-preview--card-env session
                                         (etaf-md-preview--env session)
                                         identity)))
-    (if editing
-        (etaf-node 'box
-                   (list :width 'stretch
-                         :background-color (etaf-md-preview--env-color env :panel)
-                         ;; The accent bar marks the block as text being
-                         ;; edited, at the block's own size, without moving it.
-                         :border-left (list '(px 3) 'solid
-                                            (etaf-md-preview--env-color env :accent))
-                         :wrap-mode 'char
-                         :padding '((lh 0.5) (ch 1)))
-                   (list (etaf-node 'text
-                                    (list :ref (plist-get editing :ref)
-                                          :color (etaf-md-preview--env-color env :ink)
-                                          :font-family (face-attribute
-                                                        'fixed-pitch :family nil t))
-                                    (list (plist-get editing :source)))))
       ;; A block whose text is gone paints nothing, so the page would show a
       ;; gap where its marker still lives in the source.  Showing the marker
       ;; there is what lets a reader see what is left and type it back.
@@ -476,20 +455,19 @@ the application can open and close the session around it."
                      (list :color (etaf-md-preview--env-color env :muted)
                            :font-family (face-attribute 'fixed-pitch :family nil t))
                      (list (etaf-md-preview--block-marker block))))
-         (t (etaf-ui-markdown-view-block block env)))))))
+         (t (etaf-ui-markdown-view-block block env))))))
 
-(defun etaf-md-preview--block-view (session key block ref &optional editing)
+(defun etaf-md-preview--block-view (session key block ref)
   "Return the keyed Component call that renders BLOCK of SESSION under KEY.
 REF names the box that holds the block, so a command can map the point back to
 the block under it.  A published block keeps this call, so re-rendering the
 list hands the runtime the unchanged value and costs one comparison per
-retained block.  EDITING is the source plist the block shows instead of its
-render."
+retained block."
   (etaf-node 'box
              (list :ref ref :width 'stretch)
              (list (etaf-node 'etaf-md-preview-block
                               (list :key key :session session :identity key
-                                    :block block :editing editing)
+                                    :block block)
                               nil))))
 
 (defun etaf-md-preview--view-blocks (entries)

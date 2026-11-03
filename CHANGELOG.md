@@ -4,12 +4,28 @@
 
 ### Added
 
-- `e` edits the block under point in place: the block shows the markdown it
-  was parsed from and a native edit session opens on it, so the caret,
-  selection, undo, kill ring and input methods are the buffer's own.  Every
-  keystroke is written back to the source buffer at once, and `ESC` renders
-  the block again from the text as it stands, so deleting a heading's marker
-  leaves a paragraph and an added blank line splits a paragraph in two.
+- Opening a preview of a file accepts typing at once: there is no mode to
+  enter and no key that starts editing, and a key typed on the page edits the
+  markdown source and the page repaints the block that changed.  The file is
+  written after a pause in the typing and again when the preview's buffer is
+  killed, so nothing is lost by closing the window, and a file changed by
+  another program is left alone and reported instead of overwritten.
+- The preview's own keys moved to `C-c C-m`, the namespace a major mode takes
+  for itself, because a page that types cannot give a bare letter to
+  navigation and `C-c` with one letter belongs to the reader's own bindings.
+  `C-c C-m n`, `C-c C-m p`, `C-c C-m j`, `C-c C-m r`, `C-c C-m t`,
+  `C-c C-m [`, `C-c C-m ]`, `C-c C-m h` and `C-c C-m q` do what `n`, `p`,
+  `C-c j`, `r`, `t`, `[`, `]`, `C-c h` and `q` did.
+
+### Changed
+
+- Editing a block by showing its markdown source is gone.  The page is the
+  editing surface: `e`, `etaf-md-preview-edit-block` and the block's raw-source
+  view no longer exist, so a document is typed on its rendering only.
+- A preview that accepts typing no longer repaints the same text twice: the
+  page repaints the block a key changed, and the change follower skips a
+  repaint whose text the page already shows.  A change made outside the page
+  still repaints it.
 - A preview also follows unsaved edits of its source buffer: typing repaints
   the document on the next frame, so a paragraph and its render can be
   compared while the keys are still moving, and saving or an outside write
